@@ -1,0 +1,28 @@
+# Documentos internos y datos: nunca se suben a Git
+samples/
+data/
+golden/
+*.db
+*.db-wal
+*.db-shm
+
+# Entorno
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Frontend
+node_modules/
+frontend/dist/
+
+# Editores / SO
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

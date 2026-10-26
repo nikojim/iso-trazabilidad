@@ -1,0 +1,3292 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ISO Trace API",
+    "description": "Consulta de trazabilidad documental ISO. Una arista A → B significa **A cita a B**. El impacto lista **posibles documentos a revisar**, no la confirmación de que deban modificarse. Hay un solo grafo: cada carpeta raíz del directorio de documentos es una norma, y las referencias pueden cruzar normas.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "tags": [
+          "grafo"
+        ],
+        "summary": "Health",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/normas": {
+      "get": {
+        "tags": [
+          "grafo"
+        ],
+        "summary": "Normas",
+        "description": "Normas (carpetas raíz del directorio de documentos) con sus totales.",
+        "operationId": "normas_api_normas_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NormaOut"
+                  },
+                  "type": "array",
+                  "title": "Response Normas Api Normas Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph": {
+      "get": {
+        "tags": [
+          "grafo"
+        ],
+        "summary": "Graph Neighborhood",
+        "description": "Subgrafo de vecindad (atraviesa normas), listo para Cytoscape.js.",
+        "operationId": "graph_neighborhood_api_graph_get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Documento central del subgrafo",
+              "title": "Code"
+            },
+            "description": "Documento central del subgrafo"
+          },
+          {
+            "name": "norma",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias",
+              "title": "Norma"
+            },
+            "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias"
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Saltos desde el documento",
+              "title": "Depth"
+            },
+            "description": "Saltos desde el documento"
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "in",
+                "out",
+                "both"
+              ],
+              "type": "string",
+              "description": "in: quienes lo citan · out: lo que cita · both: ambos",
+              "default": "both",
+              "title": "Direction"
+            },
+            "description": "in: quienes lo citan · out: lo que cita · both: ambos"
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Tipos de documento a mostrar",
+              "title": "Types"
+            },
+            "description": "Tipos de documento a mostrar"
+          },
+          {
+            "name": "groups",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Grupos de relación",
+              "title": "Groups"
+            },
+            "description": "Grupos de relación"
+          },
+          {
+            "name": "include_unresolved",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Unresolved"
+            }
+          },
+          {
+            "name": "max_nodes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Nodes"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/full": {
+      "get": {
+        "tags": [
+          "grafo"
+        ],
+        "summary": "Graph Full",
+        "description": "Grafo completo (todas las normas) para la vista de resaltado; acotado por\n``ISO_GRAPH_FULL_MAX_NODES``.",
+        "operationId": "graph_full_api_graph_full_get",
+        "parameters": [
+          {
+            "name": "include_unresolved",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Unresolved"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FullGraphResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/graph/cycles": {
+      "get": {
+        "tags": [
+          "grafo"
+        ],
+        "summary": "Cycles",
+        "operationId": "cycles_api_graph_cycles_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CyclesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/stats": {
+      "get": {
+        "tags": [
+          "grafo"
+        ],
+        "summary": "Stats",
+        "operationId": "stats_api_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents": {
+      "get": {
+        "tags": [
+          "documentos"
+        ],
+        "summary": "Search",
+        "operationId": "search_api_documents_get",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Texto en código o título",
+              "title": "Query"
+            },
+            "description": "Texto en código o título"
+          },
+          {
+            "name": "norma",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias",
+              "title": "Norma"
+            },
+            "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Prefijo: PO, PR, ES…",
+              "title": "Type"
+            },
+            "description": "Prefijo: PO, PR, ES…"
+          },
+          {
+            "name": "system",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Sistema: SGS, SGSA, SGC…",
+              "title": "System"
+            },
+            "description": "Sistema: SGS, SGSA, SGC…"
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Carpeta (prefijo de la ruta)",
+              "title": "Folder"
+            },
+            "description": "Carpeta (prefijo de la ruta)"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Estado de extracción",
+              "title": "Status"
+            },
+            "description": "Estado de extracción"
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": true,
+              "title": "Active"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "norma",
+                "code",
+                "title",
+                "updated_at"
+              ],
+              "type": "string",
+              "description": "norma: por norma y nombre (por defecto)",
+              "default": "norma",
+              "title": "Sort"
+            },
+            "description": "norma: por norma y nombre (por defecto)"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Página (desde 1)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Página (desde 1)"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Elementos por página",
+              "default": 50,
+              "title": "Page Size"
+            },
+            "description": "Elementos por página"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_DocumentSummary_"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{code}": {
+      "get": {
+        "tags": [
+          "documentos"
+        ],
+        "summary": "Detail",
+        "operationId": "detail_api_documents__code__get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          },
+          {
+            "name": "norma",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias",
+              "title": "Norma"
+            },
+            "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{code}/references": {
+      "get": {
+        "tags": [
+          "documentos"
+        ],
+        "summary": "References",
+        "description": "Salientes (lo que cita), pendientes (citados sin documento) y entrantes (quién lo cita).",
+        "operationId": "references_api_documents__code__references_get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          },
+          {
+            "name": "norma",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias",
+              "title": "Norma"
+            },
+            "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias"
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Solo este grupo",
+              "title": "Group"
+            },
+            "description": "Solo este grupo"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferencesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{code}/impact": {
+      "get": {
+        "tags": [
+          "documentos"
+        ],
+        "summary": "Impact",
+        "description": "Posibles documentos a revisar si cambia ``code``: quienes lo citan, directa o\nindirectamente, con la ruta que explica cada caso.",
+        "operationId": "impact_api_documents__code__impact_get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          },
+          {
+            "name": "norma",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias",
+              "title": "Norma"
+            },
+            "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias"
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Depth"
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Mostrar solo estos tipos (PR, PO…); se recorre por todos",
+              "title": "Types"
+            },
+            "description": "Mostrar solo estos tipos (PR, PO…); se recorre por todos"
+          },
+          {
+            "name": "groups",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Seguir solo relaciones de estos grupos",
+              "title": "Groups"
+            },
+            "description": "Seguir solo relaciones de estos grupos"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraversalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{code}/impact.csv": {
+      "get": {
+        "tags": [
+          "documentos"
+        ],
+        "summary": "Impact Csv",
+        "description": "El mismo impacto en CSV para Excel (UTF-8 con BOM, separador ``;``).",
+        "operationId": "impact_csv_api_documents__code__impact_csv_get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          },
+          {
+            "name": "norma",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias",
+              "title": "Norma"
+            },
+            "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias"
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Depth"
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Mostrar solo estos tipos (PR, PO…); se recorre por todos",
+              "title": "Types"
+            },
+            "description": "Mostrar solo estos tipos (PR, PO…); se recorre por todos"
+          },
+          {
+            "name": "groups",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Seguir solo relaciones de estos grupos",
+              "title": "Groups"
+            },
+            "description": "Seguir solo relaciones de estos grupos"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/csv": {}
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/{code}/dependencies": {
+      "get": {
+        "tags": [
+          "documentos"
+        ],
+        "summary": "Dependencies",
+        "description": "Documentos que ``code`` cita, directa o indirectamente.",
+        "operationId": "dependencies_api_documents__code__dependencies_get",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          },
+          {
+            "name": "norma",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias",
+              "title": "Norma"
+            },
+            "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias"
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Depth"
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Mostrar solo estos tipos (PR, PO…); se recorre por todos",
+              "title": "Types"
+            },
+            "description": "Mostrar solo estos tipos (PR, PO…); se recorre por todos"
+          },
+          {
+            "name": "groups",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Seguir solo relaciones de estos grupos",
+              "title": "Groups"
+            },
+            "description": "Seguir solo relaciones de estos grupos"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraversalResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quality/issues": {
+      "get": {
+        "tags": [
+          "calidad"
+        ],
+        "summary": "Issues",
+        "description": "Incidencias de la ingesta (almacenadas) y derivadas (ciclos, títulos citados, etc.).",
+        "operationId": "issues_api_quality_issues_get",
+        "parameters": [
+          {
+            "name": "norma",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias",
+              "title": "Norma"
+            },
+            "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Tipo de incidencia",
+              "title": "Type"
+            },
+            "description": "Tipo de incidencia"
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "info, warning o error",
+              "title": "Severity"
+            },
+            "description": "info, warning o error"
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          },
+          {
+            "name": "open",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Solo abiertas",
+              "default": true,
+              "title": "Open"
+            },
+            "description": "Solo abiertas"
+          },
+          {
+            "name": "derived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Incluir las calculadas sobre el grafo",
+              "default": true,
+              "title": "Derived"
+            },
+            "description": "Incluir las calculadas sobre el grafo"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Página (desde 1)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Página (desde 1)"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Elementos por página",
+              "default": 50,
+              "title": "Page Size"
+            },
+            "description": "Elementos por página"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_IssueOut_"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/references/unresolved": {
+      "get": {
+        "tags": [
+          "calidad"
+        ],
+        "summary": "Unresolved",
+        "description": "Códigos citados sin destino: sin documento, o presentes en varias normas (ambiguos).",
+        "operationId": "unresolved_api_references_unresolved_get",
+        "parameters": [
+          {
+            "name": "norma",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias",
+              "title": "Norma"
+            },
+            "description": "Norma (carpeta raíz). Obligatoria si el código es documento en varias"
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Texto en el código citado",
+              "title": "Query"
+            },
+            "description": "Texto en el código citado"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Página (desde 1)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Página (desde 1)"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Elementos por página",
+              "default": 50,
+              "title": "Page Size"
+            },
+            "description": "Elementos por página"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_UnresolvedOut_"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ingestion/runs": {
+      "get": {
+        "tags": [
+          "calidad"
+        ],
+        "summary": "Runs",
+        "operationId": "runs_api_ingestion_runs_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Página (desde 1)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Página (desde 1)"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Elementos por página",
+              "default": 50,
+              "title": "Page Size"
+            },
+            "description": "Elementos por página"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_RunOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CyclesResponse": {
+        "properties": {
+          "cycles": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Cycles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cycles"
+        ],
+        "title": "CyclesResponse"
+      },
+      "DocumentDetail": {
+        "properties": {
+          "norma": {
+            "type": "string",
+            "title": "Norma"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "document_type": {
+            "type": "string",
+            "title": "Document Type"
+          },
+          "system_code": {
+            "type": "string",
+            "title": "System Code"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "file_format": {
+            "type": "string",
+            "title": "File Format"
+          },
+          "extraction_status": {
+            "type": "string",
+            "title": "Extraction Status"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "outgoing_count": {
+            "type": "integer",
+            "title": "Outgoing Count"
+          },
+          "incoming_count": {
+            "type": "integer",
+            "title": "Incoming Count"
+          },
+          "file_path": {
+            "type": "string",
+            "title": "File Path"
+          },
+          "folder": {
+            "type": "string",
+            "title": "Folder"
+          },
+          "code_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code Source"
+          },
+          "references_stale": {
+            "type": "boolean",
+            "title": "References Stale"
+          },
+          "unresolved_count": {
+            "type": "integer",
+            "title": "Unresolved Count"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          },
+          "last_run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run Id"
+          },
+          "last_processed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Processed At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "open_issues": {
+            "items": {
+              "$ref": "#/components/schemas/IssueOut"
+            },
+            "type": "array",
+            "title": "Open Issues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "norma",
+          "code",
+          "title",
+          "document_type",
+          "system_code",
+          "version",
+          "file_format",
+          "extraction_status",
+          "is_active",
+          "outgoing_count",
+          "incoming_count",
+          "file_path",
+          "folder",
+          "code_source",
+          "references_stale",
+          "unresolved_count",
+          "metadata",
+          "last_run_id",
+          "last_processed_at",
+          "updated_at",
+          "open_issues"
+        ],
+        "title": "DocumentDetail"
+      },
+      "DocumentSummary": {
+        "properties": {
+          "norma": {
+            "type": "string",
+            "title": "Norma"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "document_type": {
+            "type": "string",
+            "title": "Document Type"
+          },
+          "system_code": {
+            "type": "string",
+            "title": "System Code"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "file_format": {
+            "type": "string",
+            "title": "File Format"
+          },
+          "extraction_status": {
+            "type": "string",
+            "title": "Extraction Status"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "outgoing_count": {
+            "type": "integer",
+            "title": "Outgoing Count"
+          },
+          "incoming_count": {
+            "type": "integer",
+            "title": "Incoming Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "norma",
+          "code",
+          "title",
+          "document_type",
+          "system_code",
+          "version",
+          "file_format",
+          "extraction_status",
+          "is_active",
+          "outgoing_count",
+          "incoming_count"
+        ],
+        "title": "DocumentSummary"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "examples": [
+              "document_not_found"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorBody"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse"
+      },
+      "FullGraphResponse": {
+        "properties": {
+          "graph_version": {
+            "type": "integer",
+            "title": "Graph Version"
+          },
+          "normas": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Normas"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/GraphNodeOut"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphEdgeOut"
+            },
+            "type": "array",
+            "title": "Edges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "graph_version",
+          "normas",
+          "nodes",
+          "edges"
+        ],
+        "title": "FullGraphResponse"
+      },
+      "GraphEdgeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "occurrences": {
+            "type": "integer",
+            "title": "Occurrences"
+          },
+          "mixed_groups": {
+            "type": "boolean",
+            "title": "Mixed Groups"
+          },
+          "cross_norma": {
+            "type": "boolean",
+            "title": "Cross Norma"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "target",
+          "group",
+          "occurrences",
+          "mixed_groups",
+          "cross_norma"
+        ],
+        "title": "GraphEdgeOut"
+      },
+      "GraphNodeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "norma": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Norma"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "document_type": {
+            "type": "string",
+            "title": "Document Type"
+          },
+          "system_code": {
+            "type": "string",
+            "title": "System Code"
+          },
+          "file_format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Format"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "resolved": {
+            "type": "boolean",
+            "title": "Resolved"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "norma",
+          "title",
+          "document_type",
+          "system_code",
+          "file_format",
+          "status",
+          "resolved",
+          "active"
+        ],
+        "title": "GraphNodeOut"
+      },
+      "GraphResponse": {
+        "properties": {
+          "root": {
+            "type": "string",
+            "title": "Root"
+          },
+          "depth": {
+            "type": "integer",
+            "title": "Depth"
+          },
+          "direction": {
+            "type": "string",
+            "title": "Direction"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/NeighborhoodNodeOut"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphEdgeOut"
+            },
+            "type": "array",
+            "title": "Edges"
+          }
+        },
+        "type": "object",
+        "required": [
+          "root",
+          "depth",
+          "direction",
+          "truncated",
+          "nodes",
+          "edges"
+        ],
+        "title": "GraphResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "database": {
+            "type": "string",
+            "title": "Database"
+          },
+          "schema_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Revision"
+          },
+          "graph_version": {
+            "type": "integer",
+            "title": "Graph Version"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/LimitsOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "database",
+          "schema_revision",
+          "graph_version",
+          "limits"
+        ],
+        "title": "HealthResponse"
+      },
+      "IssueOut": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "norma": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Norma"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Path"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "norma",
+          "type",
+          "severity",
+          "code",
+          "file_path",
+          "message",
+          "details",
+          "created_at",
+          "resolved_at"
+        ],
+        "title": "IssueOut"
+      },
+      "LimitsOut": {
+        "properties": {
+          "default_depth": {
+            "type": "integer",
+            "title": "Default Depth"
+          },
+          "max_depth": {
+            "type": "integer",
+            "title": "Max Depth"
+          },
+          "graph_max_nodes": {
+            "type": "integer",
+            "title": "Graph Max Nodes"
+          },
+          "graph_full_max_nodes": {
+            "type": "integer",
+            "title": "Graph Full Max Nodes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "default_depth",
+          "max_depth",
+          "graph_max_nodes",
+          "graph_full_max_nodes"
+        ],
+        "title": "LimitsOut"
+      },
+      "NeighborhoodNodeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "norma": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Norma"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "document_type": {
+            "type": "string",
+            "title": "Document Type"
+          },
+          "system_code": {
+            "type": "string",
+            "title": "System Code"
+          },
+          "file_format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Format"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "resolved": {
+            "type": "boolean",
+            "title": "Resolved"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "distance": {
+            "type": "integer",
+            "title": "Distance"
+          },
+          "is_root": {
+            "type": "boolean",
+            "title": "Is Root"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "norma",
+          "title",
+          "document_type",
+          "system_code",
+          "file_format",
+          "status",
+          "resolved",
+          "active",
+          "distance",
+          "is_root"
+        ],
+        "title": "NeighborhoodNodeOut"
+      },
+      "NormaOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "documents": {
+            "type": "integer",
+            "title": "Documents"
+          },
+          "references": {
+            "type": "integer",
+            "title": "References"
+          },
+          "unresolved": {
+            "type": "integer",
+            "title": "Unresolved"
+          },
+          "cross_norma": {
+            "type": "integer",
+            "title": "Cross Norma"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "documents",
+          "references",
+          "unresolved",
+          "cross_norma"
+        ],
+        "title": "NormaOut"
+      },
+      "OccurrenceOut": {
+        "properties": {
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "page_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Number"
+          },
+          "paragraph_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paragraph Index"
+          },
+          "table_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table Index"
+          },
+          "row_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row Index"
+          },
+          "cell_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cell Index"
+          },
+          "raw_text": {
+            "type": "string",
+            "title": "Raw Text"
+          },
+          "evidence_excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Excerpt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group",
+          "page_number",
+          "paragraph_index",
+          "table_index",
+          "row_index",
+          "cell_index",
+          "raw_text",
+          "evidence_excerpt"
+        ],
+        "title": "OccurrenceOut"
+      },
+      "Page_DocumentSummary_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[DocumentSummary]"
+      },
+      "Page_IssueOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IssueOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[IssueOut]"
+      },
+      "Page_RunOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RunOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[RunOut]"
+      },
+      "Page_UnresolvedOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UnresolvedOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[UnresolvedOut]"
+      },
+      "ReferenceItem": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "norma": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Norma"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "title_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Hint"
+          },
+          "document_type": {
+            "type": "string",
+            "title": "Document Type"
+          },
+          "resolved": {
+            "type": "boolean",
+            "title": "Resolved"
+          },
+          "cross_norma": {
+            "type": "boolean",
+            "title": "Cross Norma"
+          },
+          "candidate_normas": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Candidate Normas"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "has_mixed_groups": {
+            "type": "boolean",
+            "title": "Has Mixed Groups"
+          },
+          "occurrence_count": {
+            "type": "integer",
+            "title": "Occurrence Count"
+          },
+          "occurrences": {
+            "items": {
+              "$ref": "#/components/schemas/OccurrenceOut"
+            },
+            "type": "array",
+            "title": "Occurrences"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "norma",
+          "title",
+          "title_hint",
+          "document_type",
+          "resolved",
+          "cross_norma",
+          "candidate_normas",
+          "group",
+          "has_mixed_groups",
+          "occurrence_count",
+          "occurrences"
+        ],
+        "title": "ReferenceItem"
+      },
+      "ReferencesResponse": {
+        "properties": {
+          "norma": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Norma"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "resolved": {
+            "type": "boolean",
+            "title": "Resolved"
+          },
+          "outgoing": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceItem"
+            },
+            "type": "array",
+            "title": "Outgoing"
+          },
+          "unresolved": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceItem"
+            },
+            "type": "array",
+            "title": "Unresolved"
+          },
+          "incoming": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceItem"
+            },
+            "type": "array",
+            "title": "Incoming"
+          }
+        },
+        "type": "object",
+        "required": [
+          "norma",
+          "code",
+          "resolved",
+          "outgoing",
+          "unresolved",
+          "incoming"
+        ],
+        "title": "ReferencesResponse"
+      },
+      "RootOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "norma": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Norma"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "resolved": {
+            "type": "boolean",
+            "title": "Resolved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "norma",
+          "node_id",
+          "title",
+          "resolved"
+        ],
+        "title": "RootOut"
+      },
+      "RunOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "root_path": {
+            "type": "string",
+            "title": "Root Path"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "processed_count": {
+            "type": "integer",
+            "title": "Processed Count"
+          },
+          "skipped_count": {
+            "type": "integer",
+            "title": "Skipped Count"
+          },
+          "error_count": {
+            "type": "integer",
+            "title": "Error Count"
+          },
+          "warning_count": {
+            "type": "integer",
+            "title": "Warning Count"
+          },
+          "new_count": {
+            "type": "integer",
+            "title": "New Count"
+          },
+          "updated_count": {
+            "type": "integer",
+            "title": "Updated Count"
+          },
+          "missing_count": {
+            "type": "integer",
+            "title": "Missing Count"
+          },
+          "no_section_count": {
+            "type": "integer",
+            "title": "No Section Count"
+          },
+          "unsupported_skipped_count": {
+            "type": "integer",
+            "title": "Unsupported Skipped Count"
+          },
+          "root_files_count": {
+            "type": "integer",
+            "title": "Root Files Count"
+          },
+          "references_count": {
+            "type": "integer",
+            "title": "References Count"
+          },
+          "occurrences_count": {
+            "type": "integer",
+            "title": "Occurrences Count"
+          },
+          "duplicate_references_count": {
+            "type": "integer",
+            "title": "Duplicate References Count"
+          },
+          "unresolved_count": {
+            "type": "integer",
+            "title": "Unresolved Count"
+          },
+          "log_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "mode",
+          "status",
+          "root_path",
+          "started_at",
+          "ended_at",
+          "processed_count",
+          "skipped_count",
+          "error_count",
+          "warning_count",
+          "new_count",
+          "updated_count",
+          "missing_count",
+          "no_section_count",
+          "unsupported_skipped_count",
+          "root_files_count",
+          "references_count",
+          "occurrences_count",
+          "duplicate_references_count",
+          "unresolved_count",
+          "log_path"
+        ],
+        "title": "RunOut"
+      },
+      "StatsResponse": {
+        "properties": {
+          "normas": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Normas"
+          },
+          "documents": {
+            "type": "integer",
+            "title": "Documents"
+          },
+          "inactive_documents": {
+            "type": "integer",
+            "title": "Inactive Documents"
+          },
+          "by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Status"
+          },
+          "by_type": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Type"
+          },
+          "references": {
+            "type": "integer",
+            "title": "References"
+          },
+          "unresolved_references": {
+            "type": "integer",
+            "title": "Unresolved References"
+          },
+          "open_issues": {
+            "type": "integer",
+            "title": "Open Issues"
+          },
+          "graph_version": {
+            "type": "integer",
+            "title": "Graph Version"
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run"
+          }
+        },
+        "type": "object",
+        "required": [
+          "normas",
+          "documents",
+          "inactive_documents",
+          "by_status",
+          "by_type",
+          "references",
+          "unresolved_references",
+          "open_issues",
+          "graph_version",
+          "last_run"
+        ],
+        "title": "StatsResponse"
+      },
+      "TraversalItemOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "norma": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Norma"
+          },
+          "node_id": {
+            "type": "string",
+            "title": "Node Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "document_type": {
+            "type": "string",
+            "title": "Document Type"
+          },
+          "depth": {
+            "type": "integer",
+            "title": "Depth"
+          },
+          "relation": {
+            "type": "string",
+            "title": "Relation"
+          },
+          "path": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Path"
+          },
+          "resolved": {
+            "type": "boolean",
+            "title": "Resolved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "norma",
+          "node_id",
+          "title",
+          "document_type",
+          "depth",
+          "relation",
+          "path",
+          "resolved"
+        ],
+        "title": "TraversalItemOut"
+      },
+      "TraversalResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "root": {
+            "$ref": "#/components/schemas/RootOut"
+          },
+          "depth": {
+            "type": "integer",
+            "title": "Depth"
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer"
+          },
+          "direct": {
+            "items": {
+              "$ref": "#/components/schemas/TraversalItemOut"
+            },
+            "type": "array",
+            "title": "Direct"
+          },
+          "indirect": {
+            "items": {
+              "$ref": "#/components/schemas/TraversalItemOut"
+            },
+            "type": "array",
+            "title": "Indirect"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/TraversalSummary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "root",
+          "depth",
+          "disclaimer",
+          "direct",
+          "indirect",
+          "summary"
+        ],
+        "title": "TraversalResponse"
+      },
+      "TraversalSummary": {
+        "properties": {
+          "by_depth": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Depth"
+          },
+          "by_type": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "by_depth",
+          "by_type"
+        ],
+        "title": "TraversalSummary"
+      },
+      "UnresolvedOut": {
+        "properties": {
+          "target_code": {
+            "type": "string",
+            "title": "Target Code"
+          },
+          "title_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Hint"
+          },
+          "cited_by_count": {
+            "type": "integer",
+            "title": "Cited By Count"
+          },
+          "cited_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cited By"
+          },
+          "candidate_normas": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Candidate Normas"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target_code",
+          "title_hint",
+          "cited_by_count",
+          "cited_by",
+          "candidate_normas"
+        ],
+        "title": "UnresolvedOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
