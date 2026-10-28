@@ -1,7 +1,7 @@
 """Rendimiento con 500 documentos sintéticos (docs/IMPLEMENTATION_PLAN.md, Fase 7).
 
 Uso: ``uv run pytest -m benchmark -s``. Objetivos: ingesta completa < 5 min, incremental sin
-cambios < 30 s, impacto y subgrafo p95 < 200 ms por consulta.
+cambios < 30 s, impacto y subgrafo p95 < 200 ms por consulta, grafo completo < 2 s.
 """
 
 import random
@@ -22,27 +22,29 @@ from tests.fixtures.builders import Heading, Line, Para, build_docx, build_pdf, 
 pytestmark = pytest.mark.benchmark
 
 DOCUMENTS = 500
-GRAPHS = ("Calidad", "Seguridad")
+NORMAS = ("Calidad", "Seguridad")
 PREFIXES = ("PO", "PR", "ES", "AL", "PC", "LC", "RG", "MC")
-CITATIONS = 8  # referencias por documento (más algunas a códigos sin documento)
+CITATIONS = 8  # referencias por documento (una a otra norma y otra a un código sin documento)
 QUERIES = 60
 FULL_LIMIT_S = 300
 INCREMENTAL_LIMIT_S = 30
 QUERY_P95_LIMIT_MS = 200
+FULL_GRAPH_LIMIT_MS = 2000
 
 
 def _corpus(root: Path) -> list[tuple[str, str]]:
-    """Genera los archivos y devuelve (grafo, código) de cada documento."""
+    """Genera los archivos y devuelve (norma, código) de cada documento."""
     rng = random.Random(20261024)
     codes = [
-        (GRAPHS[i % len(GRAPHS)], f"{PREFIXES[i % len(PREFIXES)]}-SG{i % 7}-{100 + i}")
+        (NORMAS[i % len(NORMAS)], f"{PREFIXES[i % len(PREFIXES)]}-SG{i % 7}-{100 + i}")
         for i in range(DOCUMENTS)
     ]
-    by_graph = {g: [c for graph, c in codes if graph == g] for g in GRAPHS}
-    for index, (graph, code) in enumerate(codes):
-        cited = rng.sample(by_graph[graph], CITATIONS) + [f"AX-SGX-{rng.randint(1, 60):03d}"]
-        cited = [c for c in cited if c != code]
-        folder = root / graph / f"{index % 10:02d} - Carpeta"
+    by_norma = {n: [c for norma, c in codes if norma == n] for n in NORMAS}
+    for index, (norma, code) in enumerate(codes):
+        other = by_norma[NORMAS[(NORMAS.index(norma) + 1) % len(NORMAS)]]
+        cited = rng.sample(by_norma[norma], CITATIONS - 1) + [rng.choice(other)]
+        cited = [c for c in cited if c != code] + [f"AX-SGX-{rng.randint(1, 60):03d}"]
+        folder = root / norma / f"{index % 10:02d} - Carpeta"
         folder.mkdir(parents=True, exist_ok=True)
         if index % 5 == 0:
             build_docx(
@@ -99,14 +101,14 @@ def test_benchmark_500_documents(tmp_path: Path, db_url: str, migrated_engine: E
     rng = random.Random(7)
     sample = rng.sample(codes, QUERIES)
     with TestClient(create_app(settings)) as client:
-        _timed(client, "/api/graphs", {})  # calienta la caché de grafos
+        full_graph_ms = _timed(client, "/api/graph/full", {})  # también calienta la caché
         impact_ms = [
-            _timed(client, f"/api/documents/{code}/impact", {"graph": graph, "depth": 3})
-            for graph, code in sample
+            _timed(client, f"/api/documents/{code}/impact", {"norma": norma, "depth": 3})
+            for norma, code in sample
         ]
         graph_ms = [
-            _timed(client, "/api/graph", {"code": code, "graph": graph, "depth": 2})
-            for graph, code in sample
+            _timed(client, "/api/graph", {"code": code, "norma": norma, "depth": 2})
+            for norma, code in sample
         ]
 
     print(
@@ -114,8 +116,10 @@ def test_benchmark_500_documents(tmp_path: Path, db_url: str, migrated_engine: E
         f"\n  ingesta completa: {full_s:.1f} s ({full_s / DOCUMENTS * 1000:.0f} ms/doc)"
         f"\n  incremental sin cambios: {incremental_s:.1f} s"
         f"\n  impacto p95: {_p95(impact_ms):.1f} ms · subgrafo p95: {_p95(graph_ms):.1f} ms"
+        f"\n  grafo completo (sin caché): {full_graph_ms:.0f} ms"
     )
     assert full_s < FULL_LIMIT_S
     assert incremental_s < INCREMENTAL_LIMIT_S
     assert _p95(impact_ms) < QUERY_P95_LIMIT_MS
     assert _p95(graph_ms) < QUERY_P95_LIMIT_MS
+    assert full_graph_ms < FULL_GRAPH_LIMIT_MS

@@ -1,3 +1,4 @@
+import hashlib
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -65,10 +66,11 @@ def make_document() -> Callable[..., Document]:
             "file_format": FileFormat.PDF,
             "file_size": 1024,
             "file_mtime": datetime(2026, 1, 1, tzinfo=UTC),
-            "sha256": "0" * 64,
             "extraction_status": ExtractionStatus.OK,
         }
         values.update(overrides)
+        # un hash distinto por archivo: el mismo hash en dos normas es una copia idéntica
+        values.setdefault("sha256", hashlib.sha256(values["file_path"].encode()).hexdigest())
         return Document(**values)
 
     return factory

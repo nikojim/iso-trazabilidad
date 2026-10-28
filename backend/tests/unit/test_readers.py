@@ -202,6 +202,29 @@ class TestXlsxReader:
         with pytest.raises(ReadError):
             read_xlsx(corrupt)
 
+    def test_xlsm_is_read_like_xlsx(self, tmp_path: Path) -> None:
+        sheet = build_xlsx(tmp_path / "RG-SGSA-930-01 Con macros.xlsm", title="Con macros")
+
+        content = read_document(sheet)
+
+        assert content.file_format is FileFormat.XLSM
+        assert content.blocks == [] and content.metadata["title"] == "Con macros"
+
+    def test_xls_is_only_checked_not_read(self, tmp_path: Path) -> None:
+        sheet = tmp_path / "RG-SGSA-931-01 Antigua.xls"
+        sheet.write_bytes(bytes.fromhex("D0CF11E0A1B11AE1") + b"\0" * 512)
+
+        content = read_document(sheet)
+
+        assert (content.file_format, content.blocks, content.metadata) == (FileFormat.XLS, [], {})
+
+    def test_xls_that_is_not_ole_is_a_read_error(self, tmp_path: Path) -> None:
+        fake = tmp_path / "falsa.xls"
+        fake.write_bytes(b"texto con extension xls")
+
+        with pytest.raises(ReadError, match="XLS"):
+            read_document(fake)
+
 
 def test_unsupported_format(tmp_path: Path) -> None:
     other = tmp_path / "plantilla.dotx"

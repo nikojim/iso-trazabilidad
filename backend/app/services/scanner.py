@@ -61,7 +61,7 @@ def is_ignored(path: Path) -> bool:
 
 
 def describe_file(path: Path, root: Path) -> ScannedFile | None:
-    """Datos de un archivo soportado, o ``None`` si no es PDF/DOCX/XLSX o debe ignorarse."""
+    """Datos de un archivo soportado, o ``None`` si no es procesable o debe ignorarse."""
     resolved = resolve_within(path, root)
     file_format = detect_format(resolved)
     if file_format is None or is_ignored(resolved):
@@ -77,7 +77,7 @@ def describe_file(path: Path, root: Path) -> ScannedFile | None:
 
 
 def scan(path: Path, root: Path) -> ScanResult:
-    """Lista recursivamente los PDF/DOCX/XLSX bajo ``path`` en orden determinista."""
+    """Lista recursivamente los PDF/DOCX/planilla Excel bajo ``path`` en orden determinista."""
     base = resolve_within(path, root)
     files: list[ScannedFile] = []
     root_files: list[str] = []

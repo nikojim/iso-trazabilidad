@@ -21,6 +21,8 @@ cp .env.example .env         # y ajustar
 | `ISO_GRAPH_FULL_MAX_NODES` | `3000` | Tope de nodos del grafo completo (vista "Documento a modificar") |
 | `ISO_LOG_DIR` | `data/logs` | Carpeta de los logs de ingesta (un archivo por corrida). Vacía = sin archivo |
 | `ISO_LOG_LEVEL` | `INFO` | Nivel mínimo del log de ingesta |
+| `ISO_LOG_KEEP` | `200` | Logs a conservar: al terminar cada corrida se borran los más viejos (0 = sin límite) |
+| `ISO_LOG_MAX_AGE_DAYS` | `0` | Antigüedad máxima de los logs en días (0 = sin límite) |
 | `ISO_API_HOST` / `ISO_API_PORT` | `127.0.0.1` / `8000` | Dónde escucha la API |
 | `ISO_CORS_ORIGINS` | `http://localhost:5173` | Orígenes del frontend |
 | `ISO_EXTRACTION_CONFIG` | — | TOML opcional con alias de encabezados, terminadores y subgrupos |
@@ -38,8 +40,8 @@ data/documents/
 - Hay **un solo grafo**: cada carpeta de primer nivel es una norma, que organiza los documentos, y las referencias pueden cruzar de una norma a otra.
 - El código es único dentro de cada norma: el mismo código en dos normas son dos documentos distintos. Una cita se resuelve primero en la norma de quien cita; si allí no existe, en la única otra norma que lo tenga. Si lo tienen varias otras normas, la cita queda pendiente y se informa `ambiguous_reference`.
 - Nombre de archivo esperado: `CODIGO-VV Título.ext` (por ejemplo `PO-SGS-400-01 Política.pdf`). El código también se lee de la portada (`Referencia/Versión : CODIGO/VV`), del encabezado de página o de las propiedades del documento. Si las fuentes se contradicen, el documento no se publica (`source_code_conflict`).
-- Se procesan `.pdf`, `.docx` y `.xlsx`; las demás extensiones (también `.xls` y `.xlsm`) se cuentan y se omiten.
-- Las planillas `.xlsx` se identifican por el nombre (`RG-SGC-100-01 Lista maestra.xlsx`) y quedan como documentos que se pueden citar; no se analiza su contenido.
+- Se procesan `.pdf`, `.docx`, `.xlsx`, `.xlsm` y `.xls`; las demás extensiones (`.dotx`, `.pptx`, `Thumbs.db`…) se cuentan y se omiten.
+- Las planillas se identifican por el nombre (`RG-SGC-100-01 Lista maestra.xlsx`) y quedan como documentos que se pueden citar; no se analiza su contenido. Del `.xls` (formato anterior a 2007) solo se usa el nombre.
 
 ## Operación diaria
 
@@ -71,15 +73,50 @@ La ingesta es **idempotente**: repetirla sin cambios no modifica nada. Un archiv
 
 La detección de faltantes solo ocurre al ingerir la raíz completa (`iso-trace ingest`, con o sin `--incremental`), nunca con `ingest-file` ni con una subcarpeta.
 
+`--incremental` también vuelve a procesar los archivos sin cambios cuando cambiaron las reglas de extracción: una actualización del extractor o del TOML de `ISO_EXTRACTION_CONFIG`. Cada documento guarda la huella de las reglas con que se procesó; el log lo informa como `reglas_cambiadas`. Por eso, la primera corrida incremental después de actualizar el sistema puede tardar lo mismo que una completa.
+
+## Mantener la base al día automáticamente
+
+Lo recomendado es **programar la ingesta incremental de la raíz completa**, no vigilar la carpeta:
+
+- **Nada que reprocesar en cadena:** un documento nuevo conecta solo las citas que lo esperaban, en cualquier norma (`re_resolucion` en el log), sin reprocesar a quienes lo citan. Un documento modificado solo reemplaza sus propias referencias, y el impacto se calcula al consultar. La API ve los cambios sin reiniciarse.
+- **Carpetas de red y OneDrive:** los avisos de cambios en carpetas de red y OneDrive se pierden o llegan con archivos a medio copiar (`~$*.docx`). Un barrido periódico por hash no depende de ellos.
+- **Bajas y ediciones:** solo la raíz completa detecta los archivos borrados, y varias ediciones copiadas juntas se resuelven en la misma corrida.
+
+En Windows, desde la carpeta del proyecto:
+
+```powershell
+.\scripts
+egister-ingest-task.ps1                    # cada 30 min + reintento los domingos 03:15
+.\scripts
+egister-ingest-task.ps1 -IntervalMinutes 60 -NoWeeklyRetry
+.\scripts
+egister-ingest-task.ps1 -Unregister        # quitar las tareas
+```
+
+Crea en la carpeta **ISO Trace** del Programador de tareas una tarea que ejecuta `uv run iso-trace ingest --incremental`, y otra semanal con `--retry-failed`. Las dos corren desde la carpeta del proyecto, así que usan su `.env`.
+
+- **Corridas superpuestas:** si una corrida sigue en curso, no se inicia otra. La base además lo impide con su propio bloqueo.
+- **Ventana y sesión:** las tareas corren sin ventana y solo mientras el usuario tiene la sesión iniciada, que es lo que necesitan OneDrive y las unidades de red mapeadas. Para que corran sin sesión, cambiar la tarea a "Ejecutar tanto si el usuario inició sesión como si no" y usar en `ISO_DOCUMENTS_DIR` una ruta UNC (`\\servidor\recurso`), no una letra de unidad.
+- **Resultado de cada corrida:** el "Último resultado" del Programador de tareas no sirve, porque siempre es 0. El resultado real está en `iso-trace runs list` (`completed_with_errors`, `failed`) y en el log de `ISO_LOG_DIR`.
+- **Algo urgente:** no hace falta esperar a la tarea. Ejecutar `iso-trace ingest --incremental` a mano, o `iso-trace ingest-file RUTA` para un solo archivo.
+
+Precauciones:
+
+- **La base en disco local:** `ISO_DATABASE_URL` va en un disco local, nunca en el recurso de red ni en OneDrive.
+- **OneDrive con "Archivos a petición":** calcular el hash descarga cada archivo. Marcar la carpeta de documentos como "Mantener siempre en este dispositivo".
+- **Carpeta de red:** cada corrida lee todos los archivos para calcular el hash. Con cientos de documentos es aceptable. Una corrida sin cambios sobre 500 documentos locales tarda menos de un segundo.
+
 ## Log de cada ingesta
 
 Cada corrida (también `ingest-file` y `--dry-run`) escribe `ISO_LOG_DIR/ingest-NNNNN-AAAAMMDD-HHMMSS.log` (las simulaciones, `ingest-simulacion-…`). Cada línea es `fecha nivel evento clave=valor`, para leerla o filtrarla con `grep`:
 
 | Evento | Contenido |
 |---|---|
-| `inicio` | Corrida, modo, ruta y opciones |
+| `inicio` | Corrida, modo, ruta, opciones y `huella` (los primeros 12 caracteres de la huella de extracción) |
 | `escaneo` | Archivos por formato y por norma, no soportados, sueltos en la raíz (`archivo_sin_norma`, uno por archivo) |
 | `sin_cambios` | Archivos omitidos en modo incremental |
+| `reglas_cambiadas` | Archivo sin cambios que se vuelve a procesar porque cambiaron las reglas de extracción |
 | `extraido` | Código, versión, estado, referencias y ocurrencias leídas de cada archivo |
 | `documento` | Acción (`created`, `updated`, `superseded`, `blocked`, `unpublished`, `error`), estado y referencias: en la misma norma, a otra norma, pendientes, ambiguas, nuevas y eliminadas. Nivel ERROR si el archivo falló |
 | `referencia_duplicada` | WARNING: un código citado más de una vez en la misma sección, con las páginas |
@@ -90,6 +127,8 @@ Cada corrida (también `ingest-file` y `--dry-run`) escribe `ISO_LOG_DIR/ingest-
 | `resumen` | Duración, procesados, nuevos, actualizados, errores, avisos, faltantes, referencias, ocurrencias, duplicadas y el estado del grafo al terminar (`grafo_pendientes`, `grafo_otra_norma`, `grafo_ambiguas`) |
 
 Los totales también quedan en la base (`iso-trace runs list|show`, pestaña **Ingestas** de Calidad). Los logs contienen nombres de documentos internos: `data/` está fuera de Git; si `ISO_LOG_DIR` apunta a otro lugar, protegerlo igual.
+
+Al terminar cada corrida se borran los logs más viejos: se conservan los últimos `ISO_LOG_KEEP` (200) y ninguno de más de `ISO_LOG_MAX_AGE_DAYS` días (si se configura). El de la corrida en curso nunca se borra, y la depuración queda registrada en él (`logs_depurados`). Los totales de las corridas siguen en la base; `iso-trace runs show` avisa si el log ya no existe.
 
 ## Incidencias
 
@@ -118,6 +157,7 @@ Se consultan con `iso-trace issues list`, `iso-trace validate` o la pantalla **C
 |---|---|---|
 | `ambiguous_reference` | advertencia | Se cita un código que no está en la norma de quien cita y existe en varias otras normas: no se puede saber a cuál se refiere. Renombrar o mover el documento, o corregir la cita |
 | `cited_title_mismatch` | advertencia | Se cita con un título distinto del real: posible referencia desactualizada |
+| `duplicate_across_normas` | info | El mismo archivo (mismo SHA-256) está en varias normas, por ejemplo un manual integrado: al modificarlo hay que actualizar todas las copias, o dejar una sola y citarla desde las demás normas |
 | `inconsistent_cited_titles` | advertencia | Dos documentos citan el mismo código con títulos distintos |
 | `reference_to_inactive` | advertencia | Se cita un documento cuyo archivo ya no existe |
 | `unresolved_similar_code` | advertencia | Código sin documento parecido a uno existente (`RG-SGSA-928` → `LC-SGSA-928`). Es solo una sugerencia; nunca se corrige automáticamente |

@@ -68,7 +68,7 @@ def test_health_and_normas(client: TestClient) -> None:
     normas = get(client, "/api/normas")
 
     assert health["status"] == "ok"
-    assert health["schema_revision"] == "0003"
+    assert health["schema_revision"] == "0005"
     assert health["limits"] == {
         "default_depth": 2,
         "max_depth": 5,

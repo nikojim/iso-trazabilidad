@@ -1,12 +1,12 @@
 ---
 name: iso-trazabilidad
-description: Diseñar, implementar, depurar y probar extracción de referencias ISO en PDF/DOCX (y planillas XLSX citables), ingesta incremental SQLite con log por corrida, grafo único NetworkX organizado por norma y análisis de impacto documental para ISO Trace.
+description: Diseñar, implementar, depurar y probar extracción de referencias ISO en PDF/DOCX (y planillas Excel citables), ingesta incremental SQLite con log por corrida, grafo único NetworkX organizado por norma y análisis de impacto documental para ISO Trace.
 ---
 
 # Skill: trazabilidad documental ISO
 
 ## Cuándo aplicar
-Usar al crear o modificar lectores PDF/DOCX/XLSX, detector de sección REFERENCIAS, parser de códigos, sincronizador SQLite, consultas NetworkX, API o visualización de dependencias. Respetar también `CLAUDE.md`.
+Usar al crear o modificar lectores PDF/DOCX/planillas, detector de sección REFERENCIAS, parser de códigos, sincronizador SQLite, consultas NetworkX, API o visualización de dependencias. Respetar también `CLAUDE.md`.
 
 ## Contrato de extracción
 Entrada: ruta de un PDF o DOCX, código del documento origen provisto o identificado de manera validada, y configuración de encabezados.
@@ -16,7 +16,7 @@ Salida estructurada: código origen, estado de extracción, lista de códigos de
 - PDF con texto: PyMuPDF, recorriendo páginas en orden; preservar número de página. Reconocer la posibilidad de orden de lectura defectuoso en columnas o tablas; emitir advertencia en casos ambiguos.
 - DOCX: python-docx; leer párrafos y tablas en su orden documental (también celdas), no simplemente concatenar primero todos los párrafos y luego todas las tablas. Registrar párrafo/tabla/celda cuando sea viable.
 - PDF escaneado o sin texto usable: `requires_ocr`, sin modificar referencias existentes.
-- XLSX: openpyxl en modo solo lectura, **solo identidad** (propiedades del libro y `docProps/custom.xml`). No se busca sección REFERENCIAS ni se analizan las celdas, aunque contengan códigos. Con código identificado (nombre `CODE-VV Título.xlsx`, o nombre + propiedad `Referencia`) el estado es `not_applicable`: el documento es un nodo que puede ser citado. Sin código, `source_code_unresolved`. Protegido con contraseña (contenedor OLE): `encrypted`; ZIP inválido: `read_error`.
+- XLSX: openpyxl en modo solo lectura, **solo identidad** (propiedades del libro y `docProps/custom.xml`). No se busca sección REFERENCIAS ni se analizan las celdas, aunque contengan códigos. Con código identificado (nombre `CODE-VV Título.xlsx`, o nombre + propiedad `Referencia`) el estado es `not_applicable`: el documento es un nodo que puede ser citado. Sin código, `source_code_unresolved`. Protegido con contraseña (contenedor OLE): `encrypted`; ZIP inválido: `read_error`. XLSM: igual que XLSX. XLS binario (anterior a 2007): no se abre; se verifica la firma OLE (si no la tiene, `read_error`) y la identidad sale solo del nombre.
 - Normalizar Unicode (NFKC), guiones Unicode equivalentes, espacios y saltos de línea, manteniendo el texto bruto disponible para auditoría.
 
 ### 2. Delimitación de la sección
@@ -46,13 +46,13 @@ REFERENCE_PATTERN = re.compile(
 - Si un texto parece código pero no coincide, emitir `invalid_reference_candidate` para revisión, sin inventar normalización.
 
 ### 4. Reconciliación e ingesta
-- Calcular SHA-256 del archivo; omitir los no modificados en modo incremental.
+- Calcular SHA-256 del archivo; omitir los no modificados en modo incremental, salvo que se hayan procesado con otra huella de extracción (`ingestion/fingerprint.py`: código de `app/ingestion` + configuración). Todo cambio en el paquete `app/ingestion` cambia la huella y reprocesa todo en la siguiente corrida incremental.
 - Validar identificación del código fuente: metadata/nombre de archivo bajo convención; si falta o entra en conflicto, no publicar relaciones automáticamente.
 - Primero parsear y validar; **luego** abrir transacción: upsert documento, reemplazar su conjunto de referencias/ocurrencias, actualizar hash y estado; rollback ante cualquier error.
 - Si una referencia sale del archivo actualizado, eliminar solamente la relación correspondiente a ese origen.
 - La carpeta de primer nivel es la **norma** del documento; el código es único dentro de la norma.
 - Resolver `target_document_id` a partir de `target_code` en todo el grafo: primero la norma del documento que cita; si no está, la única otra norma que lo tenga; si está en varias otras, dejarlo pendiente (`ambiguous_reference`, derivada). Mantener el código si no existe. Al ingresar, reactivar, dar de baja o reemplazar un documento, recalcular la resolución de todas las referencias a su código (`services/resolution.py`).
-- Log de ejecución por corrida (`services/run_log.py`, un archivo en `ISO_LOG_DIR`): inicio y opciones, escaneo (por formato y por norma, sueltos en la raíz), una línea por documento con acción, estado, referencias (misma norma / otra norma / pendientes / ambiguas) y ocurrencias, referencias duplicadas en la sección, cada incidencia con su severidad, errores con traceback, re-resoluciones, faltantes y un resumen con totales de la corrida y del grafo. No borrar referencias existentes si falla la extracción, si falta la sección o si el PDF requiere OCR.
+- Log de ejecución por corrida (`services/run_log.py`, un archivo en `ISO_LOG_DIR`): inicio y opciones, escaneo (por formato y por norma, sueltos en la raíz), una línea por documento con acción, estado, referencias (misma norma / otra norma / pendientes / ambiguas) y ocurrencias, referencias duplicadas en la sección, cada incidencia con su severidad, errores con traceback, re-resoluciones, faltantes y un resumen con totales de la corrida y del grafo. Al terminar se depuran los logs viejos (`prune_logs`: `ISO_LOG_KEEP`, `ISO_LOG_MAX_AGE_DAYS`), nunca el de la corrida en curso. No borrar referencias existentes si falla la extracción, si falta la sección o si el PDF requiere OCR.
 
 ### 5. Semántica del grafo
 - Crear un único `nx.DiGraph()` desde SQLite con todas las normas; nodo de documento = `"norma/código"`, nodo virtual de un citado sin documento = el código; arista `A -> B` = A cita B, con `cross_norma` si une normas distintas.

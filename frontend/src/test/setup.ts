@@ -3,7 +3,7 @@ import { cleanup, configure } from '@testing-library/react'
 import { requests, server } from './server'
 
 // Margen para máquinas cargadas (MUI en jsdom es lento en el primer render).
-configure({ asyncUtilTimeout: 3000 })
+configure({ asyncUtilTimeout: 5000 })
 
 beforeAll(() => server.listen({ onUnhandledFrame: 'error' }))
 afterEach(() => {

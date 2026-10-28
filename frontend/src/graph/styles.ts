@@ -74,7 +74,7 @@ export function graphStylesheet(): StylesheetJson {
     { selector: 'edge.group-procedimientos', style: { 'line-style': 'dashed' } },
     { selector: 'edge.mixed', style: { 'line-color': '#8d6e63', 'target-arrow-color': '#8d6e63' } },
     { selector: 'edge.cross', style: { 'line-color': '#7e57c2', 'target-arrow-color': '#7e57c2' } },
-    // Resaltado del documento a modificar y de lo que cita (vista del grafo completo).
+    // Resaltado del documento a modificar, de lo que cita y de quienes lo citan (grafo completo).
     { selector: '.faded', style: { opacity: 0.12 } },
     {
       selector: 'node.hl-root',
@@ -89,8 +89,16 @@ export function graphStylesheet(): StylesheetJson {
       style: { width: 26, height: 26, 'border-width': 3, 'border-color': '#fb8c00', 'z-index': 8 },
     },
     {
+      selector: 'node.hl-citer',
+      style: { width: 28, height: 28, 'border-width': 4, 'border-color': '#1e88e5', 'z-index': 8 },
+    },
+    {
       selector: 'edge.hl-edge',
       style: { width: 3, 'line-color': '#e53935', 'target-arrow-color': '#e53935', 'z-index': 9 },
+    },
+    {
+      selector: 'edge.hl-citer-edge',
+      style: { width: 3, 'line-color': '#1e88e5', 'target-arrow-color': '#1e88e5', 'z-index': 8 },
     },
   ]
 }

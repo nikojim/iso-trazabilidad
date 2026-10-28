@@ -143,6 +143,30 @@ def test_0003_downgrade_is_refused_with_spreadsheets(db_url: str, make_document)
         migrate.downgrade(db_url, "0002")
 
 
+def test_0004_downgrade_is_refused_with_xls(db_url: str, make_document) -> None:  # type: ignore[no-untyped-def]
+    from app.db.session import make_session_factory
+    from app.models import ExtractionStatus, FileFormat
+
+    migrate.upgrade(db_url)
+    engine = create_db_engine(db_url)
+    try:
+        with make_session_factory(engine)() as session, session.begin():
+            session.add(
+                make_document(
+                    "RG-SGSA-931",
+                    file_format=FileFormat.XLS,
+                    extraction_status=ExtractionStatus.NOT_APPLICABLE,
+                )
+            )
+    finally:
+        engine.dispose()
+
+    with pytest.raises(RuntimeError, match="XLS"):
+        migrate.downgrade(db_url, "0003")
+    # 0005 se revierte; 0004 se niega y la base queda en esa revisión, sin perder planillas.
+    assert migrate.current_revision(db_url) == "0004"
+
+
 def test_orm_models_match_migrated_schema(db_url: str) -> None:
     migrate.upgrade(db_url)
     engine = create_db_engine(db_url)

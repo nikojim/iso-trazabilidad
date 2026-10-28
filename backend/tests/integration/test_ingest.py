@@ -264,6 +264,34 @@ def test_retry_failed_reprocesses_unchanged_failures(
     )
 
 
+def test_changed_extraction_rules_reprocess_unchanged_files(
+    migrated_engine: Engine, service: IngestionService, docs: Path, db: Callable[[], Session]
+) -> None:
+    write_pdf(docs, "MC-SGG-435-23 Manual.pdf", ["PO-SGS-400"])
+    service.ingest_path(docs, IngestOptions())
+    default = ExtractionConfig()
+    changed = IngestionService(
+        migrated_engine, docs, ExtractionConfig(terminators=default.terminators | {"glosario"})
+    )
+
+    assert changed.ingest_path(docs, INCREMENTAL).count("updated") == 1
+    assert document(db, "MC-SGG-435").extraction_fingerprint == changed.fingerprint
+    assert changed.ingest_path(docs, INCREMENTAL).count("skipped") == 1
+
+
+def test_documents_without_fingerprint_are_reprocessed_once(
+    service: IngestionService, docs: Path, db: Callable[[], Session]
+) -> None:
+    write_pdf(docs, "MC-SGG-435-23 Manual.pdf", ["PO-SGS-400"])
+    service.ingest_path(docs, IngestOptions())
+    with db() as session:  # como queda una base anterior a la migración 0005
+        session.scalars(select(Document)).one().extraction_fingerprint = None
+        session.commit()
+
+    assert service.ingest_path(docs, INCREMENTAL).count("updated") == 1
+    assert service.ingest_path(docs, INCREMENTAL).count("skipped") == 1
+
+
 def test_persistence_failure_rolls_back_the_document(
     service: IngestionService,
     docs: Path,
@@ -529,7 +557,7 @@ def test_reprocessing_closes_previous_issues(
 def test_ignored_and_unsupported_files(service: IngestionService, docs: Path) -> None:
     write_pdf(docs, "PO-SGS-400-01 Política.pdf", [])
     (docs / "A" / "~$-SGS-400-01 Política.docx").write_bytes(b"bloqueo de Word")
-    (docs / "A" / "RG-SGSA-927-01 Inventario.xls").write_bytes(b"x")
+    (docs / "A" / "Inducción.pptx").write_bytes(b"x")
     (docs / "A" / ".oculto").mkdir()
     write_pdf(docs, "ES-SGC-001-01 Oculto.pdf", [], folder="A/.oculto")
 
@@ -599,7 +627,7 @@ def test_concurrent_run_is_locked_unless_forced(
 def test_run_counters(service: IngestionService, docs: Path, db: Callable[[], Session]) -> None:
     write_pdf(docs, "PO-SGS-400-01 Política.pdf", ["ES-SGC-001"])
     build_pdf(docs / "A" / "LC-SGSA-915-02 Tabla.pdf", [[heading("1 LISTADO")]])
-    (docs / "A" / "x.xls").write_bytes(b"x")
+    (docs / "A" / "x.dotx").write_bytes(b"x")
     service.ingest_path(docs, IngestOptions())
     service.ingest_path(docs, INCREMENTAL)
 
@@ -763,6 +791,28 @@ def test_spreadsheet_is_a_node_that_can_be_cited(
     assert references_by_norma(db, "A", "PO-SGS-400") == {"RG-SGSA-927": "B"}
     assert open_issue_types(db, "RG-SGSA-927") == []
     assert report.error_count == 0
+
+
+def test_xlsm_and_legacy_xls_are_citable_spreadsheets(
+    service: IngestionService, docs: Path, db: Callable[[], Session]
+) -> None:
+    write_pdf(docs, "PO-SGS-400-01 Política.pdf", ["RG-SGSA-930", "RG-SGSA-931"])
+    build_xlsx(docs / "A" / "RG-SGSA-930-01 Con macros.xlsm")
+    (docs / "A" / "RG-SGSA-931-01 Antigua.xls").write_bytes(
+        bytes.fromhex("D0CF11E0A1B11AE1") + bytes(512)
+    )
+
+    report = service.ingest_path(docs, IngestOptions())
+
+    assert report.error_count == 0
+    assert [
+        (document(db, code).file_format, document(db, code).extraction_status)
+        for code in ("RG-SGSA-930", "RG-SGSA-931")
+    ] == [
+        (FileFormat.XLSM, ExtractionStatus.NOT_APPLICABLE),
+        (FileFormat.XLS, ExtractionStatus.NOT_APPLICABLE),
+    ]
+    assert references_by_norma(db, "A", "PO-SGS-400") == {"RG-SGSA-930": "A", "RG-SGSA-931": "A"}
 
 
 def test_spreadsheet_code_from_custom_property(

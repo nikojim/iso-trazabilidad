@@ -1,13 +1,16 @@
 import type { ElementDefinition } from 'cytoscape'
 import type { FullGraph, FullGraphNode, GraphEdge, Neighborhood } from '../api/types'
 
+/** Planillas Excel: se dibujan como cuadrados. */
+const SPREADSHEETS = new Set(['xlsx', 'xlsm', 'xls'])
+
 function nodeClasses(node: FullGraphNode, extra: string[] = []): string {
   return [
     `type-${node.document_type}`,
     ...extra,
     node.resolved ? '' : 'unresolved',
     node.active ? '' : 'inactive',
-    node.file_format === 'xlsx' ? 'sheet' : '',
+    SPREADSHEETS.has(node.file_format ?? '') ? 'sheet' : '',
   ]
     .filter(Boolean)
     .join(' ')
@@ -80,27 +83,44 @@ export function toFullElements(graph: FullGraph): ElementDefinition[] {
   return [...normas, ...nodes, ...graph.edges.map(edgeElement)]
 }
 
-/** Documento a modificar y lo que cita (ids de nodo), para resaltar sobre el grafo completo. */
+/**
+ * Documento a modificar y lo que cita (ids de nodo), para resaltar sobre el grafo completo.
+ * `citers`, opcional: quienes lo citan directa o indirectamente (posibles documentos a revisar).
+ */
 export interface Highlight {
   root: string
   direct: string[]
   indirect: string[]
+  citers?: string[]
 }
 
-export type HighlightClass = 'hl-root' | 'hl-direct' | 'hl-indirect' | 'faded'
+export type HighlightClass = 'hl-root' | 'hl-direct' | 'hl-indirect' | 'hl-citer' | 'faded'
+export type EdgeHighlightClass = 'hl-edge' | 'hl-citer-edge' | 'faded'
 
-/** Clase de resaltado de un nodo documento (los nodos de norma no se resaltan ni atenúan). */
-export function highlightClassFor(id: string, highlight: Highlight): HighlightClass {
-  if (id === highlight.root) return 'hl-root'
-  if (highlight.direct.includes(id)) return 'hl-direct'
-  if (highlight.indirect.includes(id)) return 'hl-indirect'
-  return 'faded'
-}
-
-/** Una arista se resalta si une dos documentos resaltados (es parte de lo que se cita). */
-export function isHighlightedEdge(source: string, target: string, highlight: Highlight): boolean {
-  const lit = (id: string) => highlightClassFor(id, highlight) !== 'faded'
-  return lit(source) && lit(target)
+/**
+ * Clasificador de nodos y aristas para un resaltado (los nodos de norma no se clasifican).
+ * Un documento citado y que a la vez lo cita (ciclo) se muestra como citado.
+ */
+export function highlighter(highlight: Highlight) {
+  const classes = new Map<string, HighlightClass>()
+  for (const id of highlight.citers ?? []) classes.set(id, 'hl-citer')
+  for (const id of highlight.indirect) classes.set(id, 'hl-indirect')
+  for (const id of highlight.direct) classes.set(id, 'hl-direct')
+  classes.set(highlight.root, 'hl-root')
+  const cited = (id: string) => {
+    const value = classes.get(id)
+    return value === 'hl-root' || value === 'hl-direct' || value === 'hl-indirect'
+  }
+  const citing = new Set(highlight.citers ?? [])
+  return {
+    node: (id: string): HighlightClass => classes.get(id) ?? 'faded',
+    /** Rojo si es parte de lo que cita; azul si lleva de quien lo cita hacia el documento. */
+    edge: (source: string, target: string): EdgeHighlightClass => {
+      if (cited(source) && cited(target)) return 'hl-edge'
+      if (citing.has(source) && (target === highlight.root || citing.has(target))) return 'hl-citer-edge'
+      return 'faded'
+    },
+  }
 }
 
 /** Paleta estable por tipo de documento (prefijo del código). */

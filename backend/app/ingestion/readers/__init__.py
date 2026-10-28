@@ -18,6 +18,8 @@ SUPPORTED_SUFFIXES = {
     ".pdf": FileFormat.PDF,
     ".docx": FileFormat.DOCX,
     ".xlsx": FileFormat.XLSX,
+    ".xlsm": FileFormat.XLSM,
+    ".xls": FileFormat.XLS,
 }
 
 
@@ -35,8 +37,12 @@ def read_document(path: Path) -> DocumentContent:
         from app.ingestion.readers.docx import read_docx
 
         return read_docx(path)
-    if file_format is FileFormat.XLSX:
+    if file_format in (FileFormat.XLSX, FileFormat.XLSM):
         from app.ingestion.readers.xlsx import read_xlsx
 
-        return read_xlsx(path)
+        return read_xlsx(path, file_format)
+    if file_format is FileFormat.XLS:
+        from app.ingestion.readers.xlsx import read_xls
+
+        return read_xls(path)
     raise ReadError(f"Formato no soportado: {path.suffix or '(sin extensión)'}")

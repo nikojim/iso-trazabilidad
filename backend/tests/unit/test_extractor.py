@@ -387,6 +387,16 @@ def test_spreadsheet_is_identified_but_not_analyzed(tmp_path: Path) -> None:
     assert result.references == [] and result.issues == []  # el [PO-SGS-400] de la celda no cuenta
 
 
+def test_legacy_xls_is_identified_by_filename(tmp_path: Path) -> None:
+    sheet = tmp_path / "RG-SGSA-931-03 Planilla antigua.xls"
+    sheet.write_bytes(bytes.fromhex("D0CF11E0A1B11AE1") + b"\0" * 512)
+
+    result = extract_document(sheet)
+
+    assert result.status is ExtractionStatus.NOT_APPLICABLE
+    assert (result.source_code, result.version) == ("RG-SGSA-931", "03")
+
+
 def test_spreadsheet_without_code_is_unresolved(tmp_path: Path) -> None:
     result = extract_document(build_xlsx(tmp_path / "inventario.xlsx"))
 

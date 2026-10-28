@@ -67,6 +67,7 @@ export const handlers = [
     if (params.code === 'XX-ABC-999') {
       return error(404, 'document_not_found', 'XX-ABC-999 no es un documento ni un código citado')
     }
+    if (params.code === 'MC-SGG-435') return HttpResponse.json(data.impactOfManual)
     return HttpResponse.json(data.impactOfStandard)
   }),
   http.get('*/api/documents/:code/dependencies', ({ request, params }) => {

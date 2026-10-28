@@ -8,13 +8,14 @@ debe quedar fuera de Git (``data/`` ya está ignorada).
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 LOGGER_NAME = "iso_trace.ingest"
 _LINE_FORMAT = "%(asctime)s %(levelname)-7s %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+LOG_PATTERN = "ingest-*.log"
 
 
 def format_fields(event: str, fields: dict[str, Any]) -> str:
@@ -33,6 +34,35 @@ def _format_value(value: Any) -> str:
     if not text or any(ch.isspace() or ch in '="' for ch in text):
         return json.dumps(text, ensure_ascii=False)
     return text
+
+
+def prune_logs(
+    log_dir: Path,
+    *,
+    keep: int,
+    max_age_days: int,
+    exclude: Path | None = None,
+    now: datetime | None = None,
+) -> list[Path]:
+    """Borra los logs de ingesta más viejos: deja los ``keep`` más recientes y ninguno de más
+    de ``max_age_days`` días (0 = sin límite). Nunca borra ``exclude`` (la corrida en curso)."""
+    if not log_dir.is_dir() or (keep == 0 and max_age_days == 0):
+        return []
+    logs = [path for path in log_dir.glob(LOG_PATTERN) if path.is_file() and path != exclude]
+    logs.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    retained = keep - 1 if exclude is not None else keep  # la corrida en curso también cuenta
+    doomed = logs[max(retained, 0) :] if keep else []
+    if max_age_days:
+        limit = (now or datetime.now()).timestamp() - timedelta(days=max_age_days).total_seconds()
+        doomed += [path for path in logs if path.stat().st_mtime < limit and path not in doomed]
+    deleted = []
+    for path in doomed:
+        try:
+            path.unlink()
+        except OSError:
+            continue  # abierto por otro proceso (Windows) o ya borrado: queda para la próxima
+        deleted.append(path)
+    return deleted
 
 
 class RunLogger:

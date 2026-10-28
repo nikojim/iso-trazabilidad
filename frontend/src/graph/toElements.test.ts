@@ -2,8 +2,7 @@ import { fullGraph, manualNeighborhood } from '../test/fixtures'
 import { graphStylesheet } from './styles'
 import {
   colorForType,
-  highlightClassFor,
-  isHighlightedEdge,
+  highlighter,
   normaNodeId,
   toElements,
   toFullElements,
@@ -80,15 +79,26 @@ describe('resaltado del documento a modificar', () => {
   }
 
   it('distingue raíz, directos, indirectos y el resto', () => {
-    expect(highlightClassFor('A/MC-SGG-435', highlight)).toBe('hl-root')
-    expect(highlightClassFor('B/LC-SGC-500', highlight)).toBe('hl-direct')
-    expect(highlightClassFor('B/PO-SGS-400', highlight)).toBe('hl-indirect')
-    expect(highlightClassFor('B/MC-SGG-435', highlight)).toBe('faded')
+    const hl = highlighter(highlight)
+    expect(hl.node('A/MC-SGG-435')).toBe('hl-root')
+    expect(hl.node('B/LC-SGC-500')).toBe('hl-direct')
+    expect(hl.node('B/PO-SGS-400')).toBe('hl-indirect')
+    expect(hl.node('B/MC-SGG-435')).toBe('faded')
   })
 
   it('resalta solo las aristas entre documentos resaltados', () => {
-    expect(isHighlightedEdge('A/MC-SGG-435', 'B/LC-SGC-500', highlight)).toBe(true)
-    expect(isHighlightedEdge('B/MC-SGG-435', 'A/ES-SGC-001', highlight)).toBe(false)
+    const hl = highlighter(highlight)
+    expect(hl.edge('A/MC-SGG-435', 'B/LC-SGC-500')).toBe('hl-edge')
+    expect(hl.edge('B/MC-SGG-435', 'A/ES-SGC-001')).toBe('faded')
+  })
+
+  it('con quienes lo citan, los marca aparte sin pisar a los citados', () => {
+    const hl = highlighter({ ...highlight, citers: ['A/PR-SGG-101', 'A/PC-SGSA-914', 'B/LC-SGC-500'] })
+    expect(hl.node('A/PR-SGG-101')).toBe('hl-citer')
+    expect(hl.node('B/LC-SGC-500')).toBe('hl-direct') // ciclo: lo cita y es citado
+    expect(hl.edge('A/PR-SGG-101', 'A/MC-SGG-435')).toBe('hl-citer-edge')
+    expect(hl.edge('A/PC-SGSA-914', 'A/PR-SGG-101')).toBe('hl-citer-edge')
+    expect(hl.edge('A/PR-SGG-101', 'A/ES-SGC-001')).toBe('faded') // no lleva al documento
   })
 })
 

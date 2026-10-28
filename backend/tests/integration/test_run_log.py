@@ -141,3 +141,42 @@ def test_incremental_run_logs_unchanged_files(service: IngestionService, docs: P
     assert len(lines_with(text, "sin_cambios")) == 3
     # El archivo ilegible nunca se publicó: se vuelve a intentar.
     assert any("PR-SGG-101" in line for line in lines_with(text, "extraido"))
+
+
+def test_incremental_run_logs_files_reprocessed_by_new_rules(
+    migrated_engine: Engine, docs: Path, tmp_path: Path
+) -> None:
+    IngestionService(migrated_engine, docs, ExtractionConfig()).ingest_path(docs, IngestOptions())
+    default = ExtractionConfig()
+    changed = IngestionService(
+        migrated_engine,
+        docs,
+        ExtractionConfig(terminators=default.terminators | {"glosario"}),
+        log_dir=tmp_path / "logs",
+    )
+
+    report = changed.ingest_path(docs, IngestOptions(incremental=True))
+
+    text = Path(report.log_path or "").read_text("utf-8")
+    assert f"huella={changed.fingerprint[:12]}" in lines_with(text, "inicio")[0]
+    assert len(lines_with(text, "reglas_cambiadas")) == 3
+    assert not lines_with(text, "sin_cambios")
+
+
+def test_old_logs_are_pruned_after_each_run(
+    migrated_engine: Engine, docs: Path, tmp_path: Path
+) -> None:
+    service = IngestionService(
+        migrated_engine, docs, ExtractionConfig(), log_dir=tmp_path / "logs", log_keep=2
+    )
+    first = service.ingest_path(docs, IngestOptions())
+    second = service.ingest_path(docs, IngestOptions(incremental=True))
+    third = service.ingest_path(docs, IngestOptions(incremental=True))
+
+    assert sorted(path.name for path in (tmp_path / "logs").iterdir()) == sorted(
+        Path(report.log_path).name for report in (second, third) if report.log_path
+    )
+    assert first.log_path and not Path(first.log_path).exists()
+    assert third.log_path
+    (pruned,) = lines_with(Path(third.log_path).read_text("utf-8"), "logs_depurados")
+    assert "cantidad=1" in pruned and "conservar=2" in pruned

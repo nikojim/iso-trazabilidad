@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # Un archivo de log por corrida de ingesta; None desactiva el archivo.
     log_dir: Path | None = Path("data/logs")
     log_level: str = "INFO"
+    # Depuración al terminar cada ingesta: logs a conservar y antigüedad máxima (0 = sin límite).
+    log_keep: int = Field(default=200, ge=0)
+    log_max_age_days: int = Field(default=0, ge=0)
 
     extraction_config: Path | None = None
     real_samples_dir: Path | None = None

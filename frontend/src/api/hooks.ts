@@ -74,8 +74,12 @@ function traversalParams(query: TraversalQuery): QueryParams {
   return { norma: query.norma, depth: query.depth, types: query.types, groups: query.groups }
 }
 
-export const useImpact = (query: TraversalQuery) =>
-  useApi<Traversal>(documentPath(query.code, '/impact'), traversalParams(query), Boolean(query.code))
+export const useImpact = (query: TraversalQuery, enabled = true) =>
+  useApi<Traversal>(
+    documentPath(query.code, '/impact'),
+    traversalParams(query),
+    enabled && Boolean(query.code),
+  )
 
 export const useDependencies = (query: TraversalQuery) =>
   useApi<Traversal>(

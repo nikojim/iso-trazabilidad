@@ -213,6 +213,31 @@ def test_ambiguous_reference_between_normas(
     ]
 
 
+def test_identical_copies_in_several_normas_are_reported(
+    db: Callable[[], Session], make_document: MakeDocument
+) -> None:
+    with db() as session, session.begin():
+        same = "a" * 64
+        session.add_all(
+            [
+                make_document("MC-SGI-001", norma="A", file_path="A/MC.pdf", sha256=same),
+                make_document("MC-SGI-001", norma="B", file_path="B/MC.pdf", sha256=same),
+                make_document("PO-SGI-002", norma="A", file_path="A/PO.pdf"),
+                make_document("PO-SGI-002", norma="B", file_path="B/PO.pdf"),  # contenido distinto
+            ]
+        )
+
+    with db() as session:
+        copies = [i for i in derived_issues(session) if i.type == "duplicate_across_normas"]
+
+    assert [(i.code, i.norma, i.severity) for i in copies] == [
+        ("MC-SGI-001", "A", "info"),
+        ("MC-SGI-001", "B", "info"),
+    ]
+    assert copies[0].details["copies"] == ["A/MC-SGI-001", "B/MC-SGI-001"]
+    assert "B/MC-SGI-001" in copies[0].message
+
+
 def test_validate_reports_the_whole_graph(
     db: Callable[[], Session], populated: None, tmp_path: Path
 ) -> None:

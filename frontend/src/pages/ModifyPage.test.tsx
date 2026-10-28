@@ -1,4 +1,4 @@
-import { act, screen, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ElementDefinition } from 'cytoscape'
 import { renderApp } from '../test/render'
@@ -48,7 +48,7 @@ const fake = vi.hoisted(() => {
           ),
         edges: () => collection(state.elements.filter((e) => e.def.group === 'edges')),
         fit: (target: unknown) => state.fits.push(target),
-        layout: () => ({ run: vi.fn() }),
+        layout: () => ({ one: vi.fn(), run: vi.fn() }),
         destroy: vi.fn(),
       }
     }),
@@ -56,7 +56,8 @@ const fake = vi.hoisted(() => {
   return state
 })
 
-vi.mock('cytoscape', () => ({ default: fake.create }))
+vi.mock('cytoscape', () => ({ default: Object.assign(fake.create, { use: vi.fn() }) }))
+vi.mock('cytoscape-fcose', () => ({ default: {} }))
 
 const classesOf = (id: string) => fake.elements.find((e) => e.id() === id)!.classes
 
@@ -126,6 +127,37 @@ describe('ModifyPage', () => {
     expect(classesOf('B/MC-SGG-435->A/ES-SGC-001')).toContain('faded')
     expect(classesOf('norma::B')).not.toContain('faded')
     expect(screen.getByLabelText('Leyenda del grafo')).toHaveTextContent('Documento a modificar')
+  })
+
+  it('el interruptor agrega quién lo cita a la lista', async () => {
+    const user = userEvent.setup()
+    renderApp('/modify?code=MC-SGG-435&norma=A')
+    await screen.findByRole('table', { name: 'Citados directamente' })
+    expect(requests.some((url) => url.pathname.endsWith('/impact'))).toBe(false)
+
+    await user.click(screen.getByRole('switch', { name: 'Mostrar también quién lo cita' }))
+
+    const table = await screen.findByRole('table', { name: 'Lo citan directamente' })
+    expect(within(table).getAllByRole('link', { name: 'PR-SGG-101' })[0]).toHaveAttribute(
+      'href',
+      '/documents/PR-SGG-101?norma=A',
+    )
+    expect(screen.getByText(/posibles documentos a revisar/i)).toBeInTheDocument()
+    expect(screen.getByText(/lo cita 1/)).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('citers=1')
+    const call = requests.find((url) => url.pathname.endsWith('/impact'))!
+    expect(call.searchParams.get('depth')).toBe('1')
+  })
+
+  it('resalta en otro color a quienes lo citan', async () => {
+    renderApp('/modify?code=MC-SGG-435&norma=A&tab=graph&citers=1')
+    await screen.findByTestId('full-graph-canvas')
+
+    await waitFor(() => expect(classesOf('A/PR-SGG-101')).toContain('hl-citer'))
+    expect(classesOf('A/PR-SGG-101->A/MC-SGG-435')).toContain('hl-citer-edge')
+    expect(classesOf('A/ES-SGC-001')).toContain('hl-direct')
+    expect(classesOf('B/MC-SGG-435')).toContain('faded')
+    expect(screen.getByLabelText('Leyenda del grafo')).toHaveTextContent('Lo cita (posible a revisar)')
   })
 
   it('permite seleccionar otro documento del grafo para modificar', async () => {

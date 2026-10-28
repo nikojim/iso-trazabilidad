@@ -88,7 +88,13 @@ def db_init() -> None:
 @app.command("extract")
 def extract(
     path: Annotated[
-        Path, typer.Argument(exists=True, dir_okay=False, readable=True, help="PDF, DOCX o XLSX")
+        Path,
+        typer.Argument(
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="PDF, DOCX o planilla Excel (xlsx, xlsm, xls)",
+        ),
     ],
     as_json: Annotated[bool, typer.Option("--json", help="Salida JSON completa")] = False,
     code: Annotated[
@@ -156,6 +162,8 @@ def _service() -> IngestionService:
         load_extraction_config(settings.extraction_config),
         log_dir=settings.log_dir,
         log_level=settings.log_level,
+        log_keep=settings.log_keep,
+        log_max_age_days=settings.log_max_age_days,
     )
 
 
@@ -218,7 +226,12 @@ def ingest(
 
 @app.command("ingest-file")
 def ingest_file(
-    path: Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="PDF, DOCX o XLSX")],
+    path: Annotated[
+        Path,
+        typer.Argument(
+            exists=True, dir_okay=False, help="PDF, DOCX o planilla Excel (xlsx, xlsm, xls)"
+        ),
+    ],
     code: Annotated[
         str | None, typer.Option("--code", help="Código del documento (si no se identifica)")
     ] = None,
@@ -379,6 +392,8 @@ def runs_show(run_id: Annotated[int, typer.Argument(help="Número de corrida")])
             raise typer.Exit(code=2)
         summary = catalog.run_out(run)
     for key, value in summary.model_dump().items():
+        if key == "log_path" and value and not Path(value).exists():
+            value = f"{value} (ya no existe: depurado o borrado)"
         typer.echo(f"{key:28} {'-' if value is None else value}")
 
 

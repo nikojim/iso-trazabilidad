@@ -20,9 +20,11 @@ interface Props {
   types: string[]
   /** Leyenda del resaltado del documento a modificar (grafo completo). */
   highlight?: boolean
+  /** El resaltado incluye a quienes citan al documento. */
+  citers?: boolean
 }
 
-export function GraphLegend({ types, highlight = false }: Props) {
+export function GraphLegend({ types, highlight = false, citers = false }: Props) {
   const item = (symbol: ReactNode, text: string) => (
     <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }} key={text}>
       {symbol}
@@ -37,13 +39,16 @@ export function GraphLegend({ types, highlight = false }: Props) {
           {item(<Swatch sx={{ bgcolor: '#607d8b', border: '3px solid #ffb300' }} />, 'Documento a modificar')}
           {item(<Swatch sx={{ bgcolor: '#607d8b', border: '3px solid #e53935' }} />, 'Citado directamente')}
           {item(<Swatch sx={{ bgcolor: '#607d8b', border: '3px solid #fb8c00' }} />, 'Citado indirectamente')}
+          {citers
+            ? item(<Swatch sx={{ bgcolor: '#607d8b', border: '3px solid #1e88e5' }} />, 'Lo cita (posible a revisar)')
+            : null}
           {item(<Swatch sx={{ bgcolor: '#607d8b', opacity: 0.2 }} />, 'Resto del grafo')}
         </>
       ) : (
         item(<Swatch sx={{ bgcolor: '#607d8b', border: '3px solid #ffb300' }} />, 'Documento consultado')
       )}
       {item(<Swatch sx={{ bgcolor: '#eceff1', border: '2px dashed #78909c' }} />, 'Citado sin documento')}
-      {item(<Swatch sx={{ bgcolor: '#607d8b', borderRadius: '3px' }} />, 'Planilla (XLSX)')}
+      {item(<Swatch sx={{ bgcolor: '#607d8b', borderRadius: '3px' }} />, 'Planilla (Excel)')}
       {item(<Swatch sx={{ bgcolor: '#607d8b', opacity: 0.45 }} />, 'Inactivo')}
       {item(<Line />, 'Referencia general')}
       {item(<Line dashed />, 'Procedimientos')}

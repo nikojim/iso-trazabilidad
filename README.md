@@ -14,12 +14,12 @@ ISO Trace procesa los documentos del sistema de gestión de calidad ISO (PDF, Wo
 - **Evidencia** de cada referencia: página, párrafo, tabla y extracto.
 - **Referencias pendientes**: si se cita un documento todavía no incorporado, el código se conserva y se resuelve cuando ese documento se ingesta.
 - **Grafo dirigido único** con NetworkX, organizado por norma: referencias salientes y entrantes (también entre normas), dependencias transitivas, ciclos y documentos aislados.
-- **Planillas XLSX** como documentos que se pueden citar (no se analizan sus referencias).
+- **Planillas Excel** (`.xlsx`, `.xlsm`, `.xls`) como documentos que se pueden citar (no se analizan sus referencias).
 - **Log de cada ingesta**: un archivo por corrida con documentos procesados, referencias, duplicados, incidencias y errores.
 - **Análisis de impacto** con profundidad configurable y la ruta que explica por qué aparece cada documento.
 - **Exportación** a GraphML, JSON y CSV.
 - **Panel de calidad**: secciones ambiguas, códigos inválidos, duplicados, autorreferencias, PDF que requieren OCR, títulos citados inconsistentes y más.
-- **Interfaz web de consulta** con búsqueda por norma, detalle, **documento a modificar** (lo que cita, en lista y resaltado sobre el grafo completo), impacto y grafo interactivo.
+- **Interfaz web de consulta** con búsqueda por norma, detalle, **documento a modificar** (lo que cita y, opcionalmente, quién lo cita, en lista y resaltado sobre el grafo completo), impacto y grafo interactivo.
 
 ---
 
@@ -58,7 +58,8 @@ data/documents/
 - Una cita se resuelve primero en la norma de quien cita; si allí no existe, en la única otra norma que tenga ese código. Si lo tienen varias otras normas, la cita queda pendiente y se informa como ambigua (`ambiguous_reference`).
 - El impacto y las dependencias cruzan normas.
 - Los archivos sueltos en la raíz no pertenecen a ninguna norma: se informan y no se procesan.
-- Las planillas `.xlsx` se identifican por el nombre del archivo y quedan como documentos que se pueden citar.
+- Las planillas (`.xlsx`, `.xlsm`, `.xls`) se identifican por el nombre del archivo y quedan como documentos que se pueden citar.
+- Si el mismo archivo está copiado en varias normas, se informa (`duplicate_across_normas`) para mantener las copias sincronizadas.
 
 ### Varias ediciones del mismo documento
 
@@ -187,6 +188,8 @@ Variables de entorno (archivo `.env`):
 | `ISO_GRAPH_FULL_MAX_NODES` | `3000` | Tope de nodos del grafo completo (vista "Documento a modificar") |
 | `ISO_LOG_DIR` | `data/logs` | Carpeta de los logs de ingesta, un archivo por corrida |
 | `ISO_LOG_LEVEL` | `INFO` | Nivel mínimo del log de ingesta |
+| `ISO_LOG_KEEP` | `200` | Logs de ingesta a conservar; al terminar cada corrida se borran los más viejos (0 = sin límite) |
+| `ISO_LOG_MAX_AGE_DAYS` | `0` | Antigüedad máxima de los logs en días (0 = sin límite) |
 | `ISO_API_HOST` | `127.0.0.1` | Interfaz donde escucha la API |
 | `ISO_CORS_ORIGINS` | `http://localhost:5173` | Orígenes permitidos para el frontend |
 | `ISO_EXTRACTION_CONFIG` | — | TOML opcional con alias de encabezados, terminadores y subgrupos |
@@ -287,7 +290,7 @@ Cada vista guarda su estado en la URL (`?code=&norma=&depth=…`), así que se p
 | Pantalla | Qué ofrece |
 |---|---|
 | **Buscar** | Documentos organizados por norma y nombre; búsqueda por código o título, filtros (norma, tipo, estado) y resultados paginados |
-| **Documento a modificar** | Dado un documento: la lista de los documentos que cita (directos y, con más profundidad, indirectos, con su norma) y una pestaña que los muestra resaltados sobre el grafo completo, con cada norma como recuadro y el resto atenuado |
+| **Documento a modificar** | Dado un documento: la lista de los documentos que cita (directos y, con más profundidad, indirectos, con su norma) y una pestaña que los muestra resaltados sobre el grafo completo, con cada norma como recuadro y el resto atenuado. El interruptor "Mostrar también quién lo cita" agrega, en lista y en azul sobre el grafo, los posibles documentos a revisar |
 | **Detalle** | Metadatos, documentos que cita (marcando los de otra norma), documentos que lo citan, referencias no resueltas o ambiguas y su evidencia |
 | **Impacto** | Profundidad ajustable, tabla de posibles documentos a revisar con su ruta y exportación a CSV |
 | **Grafo** | Subgrafo interactivo: nodo seleccionado resaltado, flechas hacia el documento citado, no resueltos diferenciados, zoom, filtros por tipo y relación, navegación con doble clic |
@@ -340,4 +343,4 @@ Las pruebas generan sus propios DOCX y PDF sintéticos, así que no hace falta n
 | [docs/api.md](docs/api.md) | Referencia de la API REST: rutas, parámetros, errores y ejemplos |
 | [docs/architecture.md](docs/architecture.md) | Capas, flujo de ingesta, grafo e impacto, decisiones y niveles de prueba |
 | [docs/data-model.md](docs/data-model.md) | Tablas, estados de extracción, garantías del esquema y migraciones |
-| [docs/operations.md](docs/operations.md) | Instalación, operación diaria, interpretación de incidencias, set de referencia, copias de seguridad y rendimiento |
+| [docs/operations.md](docs/operations.md) | Instalación, operación diaria, ingesta programada, interpretación de incidencias, set de referencia, copias de seguridad y rendimiento |

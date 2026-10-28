@@ -20,7 +20,7 @@ from app.ingestion.types import (
     ReferenceHit,
     TextBlock,
 )
-from app.models.enums import ExtractionStatus, FileFormat, Severity
+from app.models.enums import SPREADSHEET_FORMATS, ExtractionStatus, FileFormat, Severity
 
 EVIDENCE_MAX_CHARS = 300
 
@@ -51,7 +51,7 @@ def extract_document(
         return result
 
     _apply_identity(result, path, content, code_override)
-    if content.file_format is FileFormat.XLSX:
+    if content.file_format in SPREADSHEET_FORMATS:
         # Las planillas se pueden citar, pero no tienen sección REFERENCIAS que analizar.
         result.status = (
             ExtractionStatus.NOT_APPLICABLE

@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session, aliased
 from app.db.session import session_scope
 from app.ingestion.config import ExtractionConfig
 from app.ingestion.extractor import extract_document
+from app.ingestion.fingerprint import extraction_fingerprint
 from app.ingestion.readers import detect_format
 from app.ingestion.types import ExtractionResult, Issue
 from app.models import (
@@ -36,7 +37,7 @@ from app.models.base import utcnow
 from app.services import sync
 from app.services.editions import Edition, choose_edition
 from app.services.resolution import ResolutionChange, active_candidates, reresolve_code
-from app.services.run_log import RunLogger
+from app.services.run_log import RunLogger, prune_logs
 from app.services.scanner import ScannedFile, describe_file, resolve_within, scan, sha256_of
 
 STALE_RUN_AFTER = timedelta(hours=6)
@@ -53,7 +54,7 @@ class IngestionLockedError(RuntimeError):
 
 
 class UnsupportedFileError(ValueError):
-    """El archivo pedido no es un PDF/DOCX/XLSX procesable."""
+    """El archivo pedido no es un PDF/DOCX/planilla Excel procesable."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,12 +170,17 @@ class IngestionService:
         *,
         log_dir: Path | None = None,
         log_level: str = "INFO",
+        log_keep: int = 0,
+        log_max_age_days: int = 0,
     ) -> None:
         self.engine = engine
         self.root = documents_dir.resolve()
         self.config = config
+        self.fingerprint = extraction_fingerprint(config)
         self.log_dir = log_dir
         self.log_level = log_level
+        self.log_keep = log_keep
+        self.log_max_age_days = log_max_age_days
 
     # ------------------------------------------------------------------ API pública
 
@@ -196,7 +202,7 @@ class IngestionService:
         """Reprocesa un archivo siempre (sin comparar hash) y nunca marca faltantes."""
         described = describe_file(path, self.root)
         if described is None:
-            raise UnsupportedFileError(f"{path} no es un PDF/DOCX/XLSX procesable")
+            raise UnsupportedFileError(f"{path} no es un PDF/DOCX/planilla Excel procesable")
         if described.norma is None:
             raise UnsupportedFileError(
                 f"{path} está suelto en la raíz: debe estar dentro de una carpeta (norma)"
@@ -241,6 +247,7 @@ class IngestionService:
                 modo=mode.value,
                 ruta=str(path),
                 incremental=options.incremental,
+                huella=self.fingerprint[:12],
                 reintentar_fallidos=options.retry_failed,
                 reemplazar=options.replace,
                 codigo_manual=options.code_override,
@@ -268,7 +275,25 @@ class IngestionService:
             _log_summary(log, report, started)
             return report
         finally:
+            self._prune_logs(log)
             log.close()
+
+    def _prune_logs(self, log: RunLogger) -> None:
+        if self.log_dir is None:
+            return
+        deleted = prune_logs(
+            self.log_dir,
+            keep=self.log_keep,
+            max_age_days=self.log_max_age_days,
+            exclude=log.path,
+        )
+        if deleted:
+            log.info(
+                "logs_depurados",
+                cantidad=len(deleted),
+                conservar=self.log_keep or None,
+                max_dias=self.log_max_age_days or None,
+            )
 
     def _start_run(self, mode: RunMode, path: Path, options: IngestOptions) -> int:
         with session_scope(self.engine) as session:
@@ -353,10 +378,19 @@ class IngestionService:
             for file in files:
                 digest = sha256_of(file.path)
                 if options.incremental and _unchanged(known.get(file.rel_path), digest, options):
-                    code = known[file.rel_path].code
-                    report.files.append(FileReport(file.rel_path, "skipped", code=code))
-                    log.info("sin_cambios", ruta=file.rel_path, norma=file.norma, codigo=code)
-                    continue
+                    document = known[file.rel_path]
+                    if document.extraction_fingerprint == self.fingerprint:
+                        code = document.code
+                        report.files.append(FileReport(file.rel_path, "skipped", code=code))
+                        log.info("sin_cambios", ruta=file.rel_path, norma=file.norma, codigo=code)
+                        continue
+                    # Mismo archivo, pero se procesó con otro extractor u otra configuración.
+                    log.info(
+                        "reglas_cambiadas",
+                        ruta=file.rel_path,
+                        norma=file.norma,
+                        codigo=document.code,
+                    )
                 result = self._extract(file, options, log)
                 pending.append(_Pending(file, digest, result))
         return pending
@@ -451,6 +485,7 @@ class IngestionService:
                 session,
                 file=file,
                 sha256=item.sha256,
+                fingerprint=self.fingerprint,
                 result=result,
                 run_id=run_id,
                 extra_issues=extra,
@@ -510,6 +545,7 @@ class IngestionService:
             session,
             file=file,
             sha256=item.sha256,
+            fingerprint=self.fingerprint,
             result=result,
             run_id=run_id,
             document=target,

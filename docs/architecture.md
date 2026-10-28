@@ -39,13 +39,13 @@ La configuración (`backend/app/config.py`) se lee de variables `ISO_*` o de `.e
 
 Una corrida (`iso-trace ingest`) sigue estos pasos:
 
-1. **Recorrido** (`scanner.py`): solo `.pdf`, `.docx` y `.xlsx` dentro de `ISO_DOCUMENTS_DIR`. Rechaza rutas fuera de esa carpeta e ignora los archivos temporales (`~$…`) y ocultos. Las demás extensiones solo suman al contador `unsupported_skipped_count`. La primera carpeta de la ruta relativa es la **norma**; los archivos sueltos en la raíz se informan y no se procesan.
-2. **Hash** SHA-256 por streaming. En modo `--incremental` se saltean los archivos cuya ruta y hash ya están registrados.
-3. **Extracción** de todos los archivos a procesar, sin tocar la base. Ver el contrato en `.claude/skills/iso-trazabilidad/SKILL.md` y el algoritmo en el §6 del plan. Las planillas XLSX solo se identifican (`not_applicable`). Un error inesperado de un lector se registra con su traceback y deja ese archivo como `error`, sin frenar la corrida.
+1. **Recorrido** (`scanner.py`): solo `.pdf`, `.docx`, `.xlsx`, `.xlsm` y `.xls` dentro de `ISO_DOCUMENTS_DIR`. Rechaza rutas fuera de esa carpeta e ignora los archivos temporales (`~$…`) y ocultos. Las demás extensiones solo suman al contador `unsupported_skipped_count`. La primera carpeta de la ruta relativa es la **norma**; los archivos sueltos en la raíz se informan y no se procesan.
+2. **Hash** SHA-256 por streaming. En modo `--incremental` se saltean los archivos cuya ruta y hash ya están registrados, siempre que se hayan procesado con las reglas actuales: la **huella de extracción** (`ingestion/fingerprint.py`, hash del código de `app/ingestion` y de la configuración de encabezados) se guarda en cada documento, y si cambió el archivo se vuelve a procesar.
+3. **Extracción** de todos los archivos a procesar, sin tocar la base. Ver el contrato en `.claude/skills/iso-trazabilidad/SKILL.md` y el algoritmo en el §6 del plan. Las planillas solo se identifican (`not_applicable`): XLSX y XLSM con openpyxl, el XLS binario solo por el nombre. Un error inesperado de un lector se registra con su traceback y deja ese archivo como `error`, sin frenar la corrida.
 4. **Ediciones** (`editions.py`): si un mismo código aparece en varios archivos de una norma, se elige la edición vigente:
    - copias idénticas → `duplicate_copy`;
    - mayor versión, salvo que una versión menor tenga una fecha más reciente;
-   - a igual versión, PDF antes que DOCX y DOCX antes que XLSX;
+   - a igual versión, PDF antes que DOCX y DOCX antes que las planillas (XLSX, XLSM, XLS);
    - si versión y fecha se contradicen, ninguna se publica (`ambiguous_editions`).
 5. **Publicación** (`sync.py`), en **una transacción por documento**:
    - upsert del documento;
@@ -68,7 +68,7 @@ Una sola corrida de escritura a la vez: una corrida en estado `running` bloquea 
 - `GraphCache` guarda el grafo en memoria del proceso de la API por filtros y lo invalida cuando cambia `meta.graph_version`. Así, una ingesta se ve en la API sin reiniciarla.
 - **Impacto** (`impact.impacted_by`): BFS sobre los **predecesores** hasta la profundidad pedida. Usa la distancia mínima (1 = directo, > 1 = indirecto) y guarda un padre BFS por nodo para reconstruir la ruta. Tolera ciclos y nunca incluye la raíz. **Dependencias** (`dependencies_of`): el mismo recorrido sobre los sucesores.
 - **Subgrafo** (`neighborhood`): vecindad por dirección (`in`, `out`, `both`) y profundidad, recortada a `ISO_GRAPH_MAX_NODES` priorizando los nodos más cercanos.
-- **Grafo completo** (`/api/graph/full`): solo para la vista "Documento a modificar", que lo dibuja una vez (cada norma como nodo compuesto) y resalta el documento y lo que cita sin recalcular el layout. Acotado por `ISO_GRAPH_FULL_MAX_NODES`.
+- **Grafo completo** (`/api/graph/full`): solo para la vista "Documento a modificar", que lo dibuja una vez (cada norma como nodo compuesto) y resalta el documento, lo que cita y, si se pide, quienes lo citan, sin recalcular el layout. Acotado por `ISO_GRAPH_FULL_MAX_NODES`. El layout es fcose: calidad completa hasta 400 nodos y solo la fase espectral (`draft`) por encima (medido en Node: `cose` tardaba 9 s con 1000 nodos y 2 min con 3000; fcose `draft`, 0,7 s y 3,6 s). Las posiciones se guardan en memoria por `graph_version`.
 - Incidencias **derivadas** (`validation.py`): se calculan sobre el estado actual en cada consulta y no se guardan. Son ciclos, documentos aislados, citas ambiguas entre normas, citas a inactivos, títulos citados distintos del real o entre sí, y códigos no resueltos parecidos a uno existente.
 
 ## API e interfaz
@@ -84,9 +84,9 @@ Una sola corrida de escritura a la vez: una corrida en estado `running` bloquea 
 | Decisión | Motivo |
 |---|---|
 | Extractor puro, sin base | Se prueba con fixtures sintéticos y se audita con `iso-trace extract --json` |
-| SQLite como fuente de verdad y grafo efímero | Cientos o pocos miles de documentos: el grafo se reconstruye en milisegundos (benchmark: subgrafo p95 ≈ 17 ms con 500 documentos) |
+| SQLite como fuente de verdad y grafo efímero | Cientos o pocos miles de documentos: el grafo se reconstruye en milisegundos (benchmark con 500 documentos: subgrafo p95 ≈ 50 ms, grafo completo ≈ 0,2 s) |
 | Un solo grafo, carpeta raíz = norma | Hay referencias cruzadas entre normas: el impacto debe seguirlas. El código sigue siendo único por norma; una cita a un código presente en varias otras normas no se adivina (`ambiguous_reference`) |
-| Planillas XLSX como nodos | Se citan desde otros documentos, pero no tienen sección REFERENCIAS: se identifican por nombre y no se analiza su contenido |
+| Planillas Excel como nodos | Se citan desde otros documentos, pero no tienen sección REFERENCIAS: se identifican por nombre y no se analiza su contenido |
 | Log por corrida en archivo | Auditoría de cada ingesta (totales, duplicados, errores con traceback) sin depender de la consola; los totales también quedan en la base |
 | Transacción por documento | Un archivo con problemas no deja la base a medias ni frena al resto |
 | Ante la duda no se publica | Una falla de lectura o una sección mal delimitada nunca borra referencias vigentes |
@@ -98,7 +98,7 @@ Una sola corrida de escritura a la vez: una corrida en estado `running` bloquea 
 
 | Nivel | Carpeta | Qué cubre |
 |---|---|---|
-| Unitarias | `backend/tests/unit/` | Normalización, códigos, encabezados, identificación, lectores (incluido XLSX), extractor, ediciones, resolución entre normas, log, grafo e impacto |
+| Unitarias | `backend/tests/unit/` | Normalización, códigos, encabezados, identificación, lectores (incluidas las planillas), extractor, ediciones, resolución entre normas, log, grafo e impacto |
 | Integración | `backend/tests/integration/` | SQLite y migraciones, ingesta (normas, planillas, re-resolución), log de corrida, CLI, API, contrato OpenAPI, set de referencia |
 | Extremo a extremo | `backend/tests/e2e/` | Documentos sintéticos → CLI → API, con reingesta incremental |
 | Documentos reales | `backend/tests/real/` (`-m real_docs`) | Resultados esperados sobre `samples/` y precisión/recall contra el set de referencia |

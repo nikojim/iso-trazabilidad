@@ -1,14 +1,12 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { Box, Button, Stack } from '@mui/material'
-import cytoscape, { type Core, type LayoutOptions } from 'cytoscape'
+import cytoscape, { type Core, type LayoutOptions, type Position } from 'cytoscape'
+import fcose from 'cytoscape-fcose'
 import type { FullGraph } from '../api/types'
 import { graphStylesheet } from '../graph/styles'
-import {
-  highlightClassFor,
-  isHighlightedEdge,
-  toFullElements,
-  type Highlight,
-} from '../graph/toElements'
+import { highlighter, toFullElements, type Highlight } from '../graph/toElements'
+
+cytoscape.use(fcose)
 
 interface Props {
   data: FullGraph
@@ -17,31 +15,59 @@ interface Props {
   height?: number
 }
 
-const LAYOUT: LayoutOptions = {
-  name: 'cose',
-  animate: false,
-  padding: 30,
-  nodeDimensionsIncludeLabels: true,
-  randomize: false,
+/**
+ * Hasta este tamaño, fcose con calidad completa (alrededor de 1 s). Por encima, solo su fase
+ * espectral ("draft"): 3000 nodos se ordenan en segundos en vez de minutos.
+ */
+export const FULL_QUALITY_MAX_NODES = 400
+
+function layoutFor(nodeCount: number): LayoutOptions {
+  return {
+    name: 'fcose',
+    quality: nodeCount > FULL_QUALITY_MAX_NODES ? 'draft' : 'default',
+    randomize: true,
+    animate: false,
+    padding: 30,
+    nodeDimensionsIncludeLabels: true,
+  } as LayoutOptions
 }
-const HIGHLIGHT_CLASSES = 'hl-root hl-direct hl-indirect hl-edge faded'
-const LIT = '.hl-root, .hl-direct, .hl-indirect'
+
+/** Posiciones de la última versión del grafo: volver a la pestaña no recalcula el layout. */
+const positionCache = new Map<string, Record<string, Position>>()
+const cacheKey = (data: FullGraph) =>
+  `${data.graph_version}:${data.nodes.length}:${data.edges.length}`
+
+function arrange(cy: Core, data: FullGraph) {
+  const layout = cy.layout(layoutFor(data.nodes.length))
+  layout.one('layoutstop', () => {
+    const positions: Record<string, Position> = {}
+    cy.nodes()
+      .not('.norma')
+      .forEach((node) => {
+        positions[node.id()] = { ...node.position() }
+      })
+    positionCache.clear()
+    positionCache.set(cacheKey(data), positions)
+  })
+  layout.run()
+}
+
+const HIGHLIGHT_CLASSES = 'hl-root hl-direct hl-indirect hl-citer hl-edge hl-citer-edge faded'
+const LIT = '.hl-root, .hl-direct, .hl-indirect, .hl-citer'
 
 /** Aplica el resaltado sin recalcular el layout: el grafo no se mueve al cambiar de documento. */
 function applyHighlight(cy: Core, highlight: Highlight | null) {
+  const hl = highlight ? highlighter(highlight) : null
   cy.batch(() => {
     cy.nodes()
       .not('.norma')
       .forEach((node) => {
         node.removeClass(HIGHLIGHT_CLASSES)
-        if (highlight) node.addClass(highlightClassFor(node.id(), highlight))
+        if (hl) node.addClass(hl.node(node.id()))
       })
     cy.edges().forEach((edge) => {
       edge.removeClass(HIGHLIGHT_CLASSES)
-      if (highlight) {
-        const lit = isHighlightedEdge(edge.source().id(), edge.target().id(), highlight)
-        edge.addClass(lit ? 'hl-edge' : 'faded')
-      }
+      if (hl) edge.addClass(hl.edge(edge.source().id(), edge.target().id()))
     })
   })
 }
@@ -52,8 +78,9 @@ function focusHighlighted(cy: Core) {
 }
 
 /**
- * Grafo completo (todas las normas, cada una como recuadro) con el documento a modificar y lo
- * que cita resaltados; el resto queda atenuado. Clic selecciona un documento.
+ * Grafo completo (todas las normas, cada una como recuadro) con el documento a modificar, lo
+ * que cita y, si se pide, quienes lo citan resaltados; el resto queda atenuado. Clic selecciona
+ * un documento.
  */
 export function FullGraphView({ data, highlight, onSelect, height = 640 }: Props) {
   const container = useRef<HTMLDivElement>(null)
@@ -71,7 +98,6 @@ export function FullGraphView({ data, highlight, onSelect, height = 640 }: Props
       container: container.current,
       elements: toFullElements(data),
       style: graphStylesheet(),
-      layout: LAYOUT,
       wheelSensitivity: 0.3,
       minZoom: 0.05,
       maxZoom: 3,
@@ -82,6 +108,9 @@ export function FullGraphView({ data, highlight, onSelect, height = 640 }: Props
     instance.on('tap', (event) => {
       if (event.target === instance) handlers.current.onSelect(null)
     })
+    const cached = positionCache.get(cacheKey(data))
+    if (cached) instance.layout({ name: 'preset', positions: cached, fit: false }).run()
+    else arrange(instance, data)
     cy.current = instance
     applyHighlight(instance, current.current)
     focusHighlighted(instance)
@@ -97,7 +126,9 @@ export function FullGraphView({ data, highlight, onSelect, height = 640 }: Props
     focusHighlighted(cy.current)
   }, [highlight])
 
-  const litCount = highlight ? 1 + highlight.direct.length + highlight.indirect.length : 0
+  const litCount = highlight
+    ? 1 + highlight.direct.length + highlight.indirect.length + (highlight.citers?.length ?? 0)
+    : 0
   return (
     <Box>
       <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
@@ -112,7 +143,7 @@ export function FullGraphView({ data, highlight, onSelect, height = 640 }: Props
         <Button size="small" variant="outlined" onClick={() => cy.current?.fit(undefined, 30)}>
           Ver todo
         </Button>
-        <Button size="small" variant="outlined" onClick={() => cy.current?.layout(LAYOUT).run()}>
+        <Button size="small" variant="outlined" onClick={() => cy.current && arrange(cy.current, data)}>
           Reordenar
         </Button>
       </Stack>

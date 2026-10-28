@@ -3,7 +3,7 @@
 Regla acordada con el usuario (2026-10-23):
 - Copias idénticas (mismo SHA-256): se reconocen como copia (``duplicate_copy``).
 - Vigente: la de mayor versión, siempre que ninguna versión menor tenga una fecha de
-  modificación más reciente. A igual versión, el formato preferido (PDF, DOCX, XLSX).
+  modificación más reciente. A igual versión, el formato preferido (PDF, DOCX, XLSX, XLSM, XLS).
 - Si versión y fecha no coinciden (p. ej. informes periódicos donde la versión se reinicia
   cada año), la elección es ambigua: no se publica ninguna (``ambiguous_editions``).
 """
@@ -15,7 +15,13 @@ from app.ingestion.types import Issue
 from app.models import FileFormat, Severity
 
 # El PDF publicado gana al Word fuente; la planilla, que no aporta referencias, va al final.
-FORMAT_PRIORITY = (FileFormat.PDF, FileFormat.DOCX, FileFormat.XLSX)
+FORMAT_PRIORITY = (
+    FileFormat.PDF,
+    FileFormat.DOCX,
+    FileFormat.XLSX,
+    FileFormat.XLSM,
+    FileFormat.XLS,
+)
 
 
 @dataclass(frozen=True, slots=True)

@@ -136,6 +136,7 @@ def derived_issues(session: Session) -> list[DerivedIssue]:
                 norma=data["norma"],
             )
         )
+    issues += _copies_across_normas(session)
     references = _references_with_documents(session)
     issues += _ambiguous_references(session, references)
     issues += _references_to_inactive(session, references)
@@ -191,6 +192,37 @@ def _ambiguous_references(session: Session, references: list[_Ref]) -> list[Deri
                     f"varias normas ({', '.join(normas)}); no se puede saber a cuál se refiere",
                     {"source": ref.source, "target": ref.target_code, "normas": normas},
                     ref.source_norma,
+                )
+            )
+    return issues
+
+
+def _copies_across_normas(session: Session) -> list[DerivedIssue]:
+    """Un mismo archivo (mismo SHA-256) publicado en varias normas: una incidencia por copia."""
+    rows = session.execute(
+        select(Document.sha256, Document.norma, Document.code)
+        .where(Document.is_active.is_(True))
+        .order_by(Document.sha256, Document.norma, Document.code)
+    )
+    by_hash: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for sha256, norma, code in rows:
+        by_hash[sha256].append((norma, code))
+    issues = []
+    for sha256, copies in by_hash.items():
+        if len({norma for norma, _ in copies}) < 2:
+            continue
+        labels = [f"{norma}/{code}" for norma, code in copies]
+        for (norma, code), label in zip(copies, labels, strict=True):
+            others = ", ".join(other for other in labels if other != label)
+            issues.append(
+                DerivedIssue(
+                    "duplicate_across_normas",
+                    Severity.INFO,
+                    code,
+                    f"{label} es el mismo archivo que {others}: al modificarlo, actualizar todas "
+                    "las copias (o dejar una sola y citarla desde las demás normas)",
+                    {"copies": labels, "sha256": sha256},
+                    norma,
                 )
             )
     return issues

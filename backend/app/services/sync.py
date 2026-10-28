@@ -131,6 +131,7 @@ def publish(
     *,
     file: ScannedFile,
     sha256: str,
+    fingerprint: str,
     result: ExtractionResult,
     run_id: int,
     document: Document | None,
@@ -154,7 +155,7 @@ def publish(
         )
         session.add(document)
     was_active = document.is_active is not False
-    _apply_file_fields(document, file, sha256, result, run_id)
+    _apply_file_fields(document, file, sha256, fingerprint, result, run_id)
     session.flush()
 
     issues = [*result.issues, *extra_issues]
@@ -198,6 +199,7 @@ def mark_unpublished(
     *,
     file: ScannedFile,
     sha256: str,
+    fingerprint: str,
     result: ExtractionResult,
     run_id: int,
     extra_issues: Iterable[Issue] = (),
@@ -211,6 +213,7 @@ def mark_unpublished(
     issues = [*result.issues, *extra_issues]
     if document is not None:
         document.sha256 = sha256
+        document.extraction_fingerprint = fingerprint
         document.extraction_status = (
             result.status if result.status in RETRYABLE else ExtractionStatus.SOURCE_CODE_UNRESOLVED
         )
@@ -230,7 +233,12 @@ def mark_unpublished(
 
 
 def _apply_file_fields(
-    document: Document, file: ScannedFile, sha256: str, result: ExtractionResult, run_id: int
+    document: Document,
+    file: ScannedFile,
+    sha256: str,
+    fingerprint: str,
+    result: ExtractionResult,
+    run_id: int,
 ) -> None:
     document.title = result.title or document.title
     document.version = result.version or document.version
@@ -240,6 +248,7 @@ def _apply_file_fields(
     document.file_size = file.size
     document.file_mtime = file.mtime
     document.sha256 = sha256
+    document.extraction_fingerprint = fingerprint
     document.extraction_status = result.status
     document.code_source = result.code_source
     document.is_active = True

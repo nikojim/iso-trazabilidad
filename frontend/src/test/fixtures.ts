@@ -24,7 +24,7 @@ export const normas: NormaSummary[] = [
 export const health: Health = {
   status: 'ok',
   database: 'ok',
-  schema_revision: '0003',
+  schema_revision: '0004',
   graph_version: 7,
   limits: { default_depth: 2, max_depth: 5, graph_max_nodes: 300, graph_full_max_nodes: 3000 },
 }
@@ -181,6 +181,21 @@ export const impactOfStandard: Traversal = {
     traversalItem('PR-SGG-101', 'A', 'Gestión del personal', 2, ['PR-SGG-101', 'MC-SGG-435', 'ES-SGC-001']),
   ],
   summary: { by_depth: { '1': 1, '2': 1 }, by_type: { MC: 1, PR: 1 } },
+}
+
+/** Quienes citan a A/MC-SGG-435: el procedimiento de la misma norma. */
+export const impactOfManual: Traversal = {
+  ...impactOfStandard,
+  root: {
+    code: 'MC-SGG-435',
+    norma: 'A',
+    node_id: 'A/MC-SGG-435',
+    title: 'Manual de los Sistemas de Gestión',
+    resolved: true,
+  },
+  direct: [traversalItem('PR-SGG-101', 'A', 'Gestión del personal', 1, ['PR-SGG-101', 'MC-SGG-435'])],
+  indirect: [],
+  summary: { by_depth: { '1': 1 }, by_type: { PR: 1 } },
 }
 
 /** Lo que cita A/MC-SGG-435: ES (misma norma), la planilla de B y un código sin documento. */

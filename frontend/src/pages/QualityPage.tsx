@@ -27,6 +27,7 @@ import { links, parseNodeId, useUrlParams } from '../routing'
 const ISSUE_TYPES: { value: string; label: string }[] = [
   { value: 'cycle', label: 'Referencias circulares' },
   { value: 'ambiguous_reference', label: 'Cita ambigua entre normas' },
+  { value: 'duplicate_across_normas', label: 'Mismo archivo en varias normas' },
   { value: 'cited_title_mismatch', label: 'Título citado distinto del real' },
   { value: 'inconsistent_cited_titles', label: 'Mismo código citado con títulos distintos' },
   { value: 'reference_to_inactive', label: 'Cita a documento inactivo' },

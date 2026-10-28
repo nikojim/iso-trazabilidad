@@ -1,6 +1,6 @@
 # ISO Trace — Modelo de datos
 
-SQLite es la única fuente de verdad. Cada conexión activa `PRAGMA foreign_keys=ON`, `journal_mode=WAL`, `busy_timeout=5000` y `synchronous=NORMAL`. El esquema se crea y actualiza con Alembic (`backend/migrations/`, revisión actual `0003`) mediante `iso-trace db init`.
+SQLite es la única fuente de verdad. Cada conexión activa `PRAGMA foreign_keys=ON`, `journal_mode=WAL`, `busy_timeout=5000` y `synchronous=NORMAL`. El esquema se crea y actualiza con Alembic (`backend/migrations/`, revisión actual `0004`) mediante `iso-trace db init`.
 
 ```mermaid
 erDiagram
@@ -29,10 +29,11 @@ Un documento incorporado, único por norma. Todas las normas forman **un solo gr
 | `version` | texto NULL | Versión (`23`, `01`) |
 | `file_path` | texto **UNIQUE** | Relativa a `ISO_DOCUMENTS_DIR`, con `/` |
 | `folder` | texto | Carpeta del archivo relativa a la raíz (empieza por la norma) |
-| `file_format` | `pdf` \| `docx` \| `xlsx` | CHECK |
+| `file_format` | `pdf` \| `docx` \| `xlsx` \| `xlsm` \| `xls` | CHECK |
 | `file_size`, `file_mtime` | | Del archivo; la fecha decide entre ediciones |
 | `sha256` | texto | Hash del último contenido leído |
 | `references_sha256` | texto NULL | Hash del contenido que generó las referencias vigentes. Si difiere de `sha256`, las referencias están desactualizadas (`references_stale`) |
+| `extraction_fingerprint` | texto NULL | Huella de las reglas con que se procesó el archivo (código del extractor + `ISO_EXTRACTION_CONFIG`). Si no coincide con la actual, `--incremental` lo vuelve a procesar. NULL en documentos anteriores a la migración 0005 |
 | `extraction_status` | enum | Ver la tabla de estados más abajo |
 | `code_source` | enum NULL | `filename`, `content`, `filename+content` u `override` |
 | `is_active` | booleano | `false` si el archivo desapareció |
@@ -102,7 +103,7 @@ Pares clave/valor. `graph_version` se incrementa en cada cambio publicado y sirv
 | `requires_ocr` | PDF escaneado | No |
 | `error` | Archivo ilegible, corrupto o cifrado | No |
 | `source_code_unresolved` | No se pudo confirmar el código del documento | No (el documento no se publica) |
-| `not_applicable` | Planilla XLSX: se identifica y puede ser citada, pero no se analizan sus referencias | Sí, por un conjunto vacío (una planilla nunca cita) |
+| `not_applicable` | Planilla (XLSX, XLSM o XLS): se identifica y puede ser citada, pero no se analizan sus referencias | Sí, por un conjunto vacío (una planilla nunca cita) |
 
 ## Reglas que el esquema garantiza
 
@@ -118,5 +119,6 @@ Pares clave/valor. `graph_version` se incrementa en cada cambio publicado y sirv
 | `0001` | Esquema inicial; carga `graph_version=0` |
 | `0002` | Grafos por carpeta: `graph_name` derivado de `file_path`, unicidad `(graph_name, code)`, `root_files_count` |
 | `0003` | Grafo único: `graph_name` → `norma` (unicidad `(norma, code)`), `xlsx` y `not_applicable` en los CHECK, contadores de referencias y `log_path` en `ingestion_runs`; re-resuelve las referencias entre normas |
+| `0004` | Planillas `xlsm` y `xls` en el CHECK de `file_format` |
 
 Las migraciones usan `render_as_batch=True`, porque SQLite no soporta `ALTER` completo. Como el modo batch recrea las tablas, `migrations/env.py` desactiva `PRAGMA foreign_keys` durante la migración (si no, recrear `documents` dispararía el `ON DELETE CASCADE` y borraría las referencias) y al final verifica `PRAGMA foreign_key_check`. Se prueban con `upgrade head → downgrade base → upgrade head`, y la prueba comprueba que el ORM no difiere del esquema migrado.

@@ -19,7 +19,7 @@ La documentación interactiva queda en `/docs` (Swagger UI) y el esquema en `/op
 - **Impacto**: documentos que citan al consultado, directa o indirectamente. Son **posibles documentos a revisar**, no la confirmación de que deban modificarse; cada respuesta incluye ese aviso en `disclaimer`.
 - **Dependencias**: lo que el documento cita, directa o indirectamente (la vista "Documento a modificar").
 - **Código citado sin documento**: un código que alguien cita pero que no tiene documento (o que es ambiguo entre normas). Tiene referencias entrantes e impacto, pero no detalle (404).
-- **Planilla (XLSX)**: documento con estado `not_applicable`; puede ser citado, pero no se analizan sus referencias.
+- **Planilla** (`file_format` `xlsx`, `xlsm` o `xls`): documento con estado `not_applicable`; puede ser citado, pero no se analizan sus referencias.
 
 ## Convenciones
 
@@ -81,7 +81,7 @@ Siempre con el mismo formato:
 | Ruta | Parámetros | Respuesta |
 |---|---|---|
 | `GET /api/graph` | `code` (obligatorio), `norma`, `depth`, `direction` (`in`: quienes lo citan; `out`: lo que cita; `both`), `types`, `groups`, `include_unresolved`, `max_nodes` | Subgrafo de vecindad para Cytoscape.js: `{root, depth, direction, truncated, nodes, edges}` (`root` es el id del nodo). Si supera `max_nodes` (tope `ISO_GRAPH_MAX_NODES`) se recorta por distancia y `truncated=true` |
-| `GET /api/graph/full` | `include_unresolved` | Grafo completo, todas las normas: `{graph_version, normas, nodes, edges}`. Lo usa la vista "Documento a modificar" para resaltar lo que cita un documento. Acotado por `ISO_GRAPH_FULL_MAX_NODES` (400 `graph_too_large`) |
+| `GET /api/graph/full` | `include_unresolved` | Grafo completo, todas las normas: `{graph_version, normas, nodes, edges}`. Lo usa la vista "Documento a modificar" para resaltar lo que cita un documento (y, con el interruptor, quién lo cita, vía `/impact`). Acotado por `ISO_GRAPH_FULL_MAX_NODES` (400 `graph_too_large`) |
 | `GET /api/graph/cycles` | `limit` | Referencias circulares (ids de nodo), también entre normas |
 
 Nodos: `{id, code, norma, title, document_type, system_code, file_format, status, resolved, active}` (más `distance` e `is_root` en la vecindad). Aristas: `{id, source, target, group, occurrences, mixed_groups, cross_norma}`, donde `source` cita a `target`.
@@ -90,7 +90,7 @@ Nodos: `{id, code, norma, title, document_type, system_code, file_format, status
 
 | Ruta | Parámetros | Respuesta |
 |---|---|---|
-| `GET /api/quality/issues` | `norma`, `type`, `severity`, `code`, `open` (por defecto `true`), `derived` (por defecto `true`), `page`, `page_size` | Incidencias de la ingesta (`source="stored"`) y calculadas sobre el estado actual (`source="derived"`: ciclos, documentos aislados, citas ambiguas entre normas, títulos citados distintos, citas a inactivos, códigos parecidos) |
+| `GET /api/quality/issues` | `norma`, `type`, `severity`, `code`, `open` (por defecto `true`), `derived` (por defecto `true`), `page`, `page_size` | Incidencias de la ingesta (`source="stored"`) y calculadas sobre el estado actual (`source="derived"`: ciclos, documentos aislados, citas ambiguas entre normas, el mismo archivo en varias normas, títulos citados distintos, citas a inactivos, códigos parecidos) |
 | `GET /api/references/unresolved` | `norma` (de quien cita), `query`, `page`, `page_size` | Códigos citados sin destino: `{target_code, title_hint, cited_by_count, cited_by, candidate_normas}`; `cited_by` son ids `norma/código`; `candidate_normas` no vacío = cita ambigua |
 
 ## Ejemplos

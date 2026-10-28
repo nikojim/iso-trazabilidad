@@ -1,12 +1,12 @@
 # ISO Trace — instrucciones para Claude Code
 
 ## Objetivo
-Construir una aplicación de trazabilidad de documentos de calidad ISO. A partir de cientos de documentos PDF, DOCX y planillas XLSX, identificar las referencias explícitas de la sección **REFERENCIAS**, persistir sus relaciones y permitir consultar dependencias e impacto ante cambios documentales.
+Construir una aplicación de trazabilidad de documentos de calidad ISO. A partir de cientos de documentos PDF, DOCX y planillas Excel, identificar las referencias explícitas de la sección **REFERENCIAS**, persistir sus relaciones y permitir consultar dependencias e impacto ante cambios documentales.
 
 ## Stack obligatorio
 - Python 3.12+; FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic, Typer, NetworkX, pytest, Ruff.
 - SQLite como única fuente de verdad (activar `PRAGMA foreign_keys=ON`; usar WAL donde corresponda).
-- DOCX: python-docx. PDF con texto: PyMuPDF. XLSX: openpyxl (solo identidad: se pueden citar, no se analizan sus referencias). PDF escaneado: detectar y reportar; OCR no es requisito del MVP.
+- DOCX: python-docx. PDF con texto: PyMuPDF. XLSX/XLSM: openpyxl; XLS binario: solo el nombre del archivo (las planillas solo aportan identidad: se pueden citar, no se analizan sus referencias). PDF escaneado: detectar y reportar; OCR no es requisito del MVP.
 - React + TypeScript + Vite, Cytoscape.js para grafos interactivos; Vitest para pruebas.
 - No usar LLM, embeddings, RAG, Neo4j ni LangChain en el MVP.
 
@@ -23,8 +23,8 @@ Construir una aplicación de trazabilidad de documentos de calidad ISO. A partir
 10. Análisis de impacto = **posibles documentos a revisar**, no certeza de necesidad de modificación.
 11. **Un solo grafo, organizado por norma**: cada carpeta de primer nivel del directorio de documentos es una **norma** (`documents.norma`), no un grafo aparte; hay un único grafo y las referencias e impacto cruzan normas. El código es único **dentro** de cada norma (`UNIQUE(norma, code)`): el mismo código en dos normas son documentos distintos. Resolución de `A (norma N) -> C`: (1) el documento C de la norma N, si existe; (2) si no, el de la única otra norma que lo tenga (referencia cruzada); (3) si está en varias otras normas, queda pendiente y se informa `ambiguous_reference`. La resolución se recalcula por código cada vez que un documento con ese código aparece, se reactiva, se da de baja o se reemplaza. Los archivos sueltos en la raíz se informan y no se procesan.
 12. **Varias ediciones del mismo código en una norma**: copias idénticas (mismo SHA-256) se reconocen como copia; vigente = mayor versión siempre que ninguna versión menor sea más reciente por fecha de modificación (a igual versión, PDF antes que DOCX); si versión y fecha no coinciden, no publicar ninguna y emitir `ambiguous_editions`. Prioridad de formato: PDF, DOCX, XLSX.
-13. **Planillas XLSX**: se identifican por nombre de archivo (o propiedad `Referencia`), quedan como nodos con estado `not_applicable` y pueden ser citadas; no se analiza su contenido.
-14. **Log de cada corrida**: toda ingesta (también `ingest-file` y `--dry-run`) escribe un archivo en `ISO_LOG_DIR` (`ingest-NNNNN-fecha.log`) con inicio, escaneo, una línea por documento (acción, estado, referencias, ocurrencias), referencias duplicadas, incidencias, errores con traceback, re-resoluciones y un resumen con totales; los contadores también quedan en `ingestion_runs`.
+13. **Planillas Excel** (`.xlsx`, `.xlsm`, `.xls`): se identifican por nombre de archivo (o propiedad `Referencia` en XLSX/XLSM), quedan como nodos con estado `not_applicable` y pueden ser citadas; no se analiza su contenido. Prioridad de formato en ediciones: PDF > DOCX > XLSX > XLSM > XLS.
+14. **Log de cada corrida**: toda ingesta (también `ingest-file` y `--dry-run`) escribe un archivo en `ISO_LOG_DIR` (`ingest-NNNNN-fecha.log`) con inicio, escaneo, una línea por documento (acción, estado, referencias, ocurrencias), referencias duplicadas, incidencias, errores con traceback, re-resoluciones y un resumen con totales; los contadores también quedan en `ingestion_runs`. Al terminar cada corrida se depuran los logs viejos (`ISO_LOG_KEEP`, `ISO_LOG_MAX_AGE_DAYS`), nunca el de la corrida en curso.
 
 ## Estructura de proyecto
 ```text
@@ -44,7 +44,7 @@ iso-trazabilidad/
 ```
 
 ## Modelo de datos mínimo
-- `documents`: id, norma, code, UNIQUE(norma, code), title, file_path, file_format (pdf/docx/xlsx), sha256, version (opcional), extraction_status, updated_at.
+- `documents`: id, norma, code, UNIQUE(norma, code), title, file_path, file_format (pdf/docx/xlsx/xlsm/xls), sha256, version (opcional), extraction_status, updated_at.
 - `document_references`: id, source_document_id, target_code, target_document_id NULL, group_name, UNIQUE(source_document_id, target_code). Guardar grupo predominante, y en ocurrencias los grupos observados si difieren.
 - `reference_occurrences`: id, reference_id, group_name, page_number NULL, paragraph_index NULL, table_index NULL, evidence_excerpt NULL.
 - `ingestion_runs`: id, start_at, end_at, status, processed_count, skipped_count, error_count, references_count, occurrences_count, duplicate_references_count, unresolved_count, log_path.
@@ -57,7 +57,7 @@ Usar claves externas e índices sobre code, target_code y source_document_id. Re
 
 ## Frontend
 - Búsqueda por código y título organizada por norma y nombre, detalle documental, listas separadas de referencias salientes y entrantes, análisis de impacto directo/indirecto, grafo interactivo por vecindad, panel de incidencias.
-- **Documento a modificar** (`/modify`): lista de los documentos que cita (directos; con más profundidad, indirectos) y los mismos resaltados sobre el grafo completo, con cada norma como recuadro y el resto atenuado.
+- **Documento a modificar** (`/modify`): lista de los documentos que cita (directos; con más profundidad, indirectos) y los mismos resaltados sobre el grafo completo, con cada norma como recuadro y el resto atenuado. Un interruptor (`citers=1`) agrega quienes lo citan (posibles documentos a revisar), en lista y en otro color. Layout fcose (calidad completa hasta 400 nodos, `draft` por encima) con posiciones cacheadas por `graph_version`.
 - Cytoscape.js con flechas orientadas según la semántica `origen -> citado`. Diferenciar referencias no resueltas.
 - Por defecto, solicitar subgrafos de vecindad. El grafo completo se carga solo en la vista de documento a modificar, acotado por `ISO_GRAPH_FULL_MAX_NODES`.
 

@@ -32,6 +32,8 @@ class Document(Base):
     file_mtime: Mapped[datetime] = mapped_column(UtcDateTime())
     sha256: Mapped[str] = mapped_column(String(64))
     references_sha256: Mapped[str | None] = mapped_column(String(64))
+    # Reglas con que se procesó el archivo (ingestion/fingerprint.py); NULL = anteriores a 0005.
+    extraction_fingerprint: Mapped[str | None] = mapped_column(String(64))
 
     extraction_status: Mapped[ExtractionStatus] = mapped_column(
         str_enum(ExtractionStatus, "extraction_status")

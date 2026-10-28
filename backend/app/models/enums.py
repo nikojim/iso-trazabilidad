@@ -7,6 +7,12 @@ class FileFormat(StrEnum):
     PDF = "pdf"
     DOCX = "docx"
     XLSX = "xlsx"
+    XLSM = "xlsm"  # planilla con macros: se lee igual que XLSX
+    XLS = "xls"  # formato binario anterior a 2007: solo se identifica por el nombre
+
+
+# Planillas: se pueden citar, pero no se analizan sus referencias salientes.
+SPREADSHEET_FORMATS = frozenset({FileFormat.XLSX, FileFormat.XLSM, FileFormat.XLS})
 
 
 class ExtractionStatus(StrEnum):
